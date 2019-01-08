@@ -1,0 +1,2382 @@
+package scheduleRMS;
+
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.Writer;
+import java.text.DateFormat;
+import java.text.DecimalFormat;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.PriorityQueue;
+import java.util.Random;
+import java.util.TreeSet;
+
+import energy.ParameterSetting;
+import energy.SysClockFreq;
+import platform.Energy;
+import platform.Fault;
+import platform.Processor;
+import platform.ProcessorState;
+import queue.ISortedJobQueue;
+import queue.ISortedQueue;
+import queue.SortedJobQueuePeriod;
+import queue.SortedQueuePeriod;
+import taskGeneration.FileTaskReaderTxt;
+import taskGeneration.ITask;
+import taskGeneration.Instance;
+import taskGeneration.Job;
+import taskGeneration.SystemMetric;
+
+/**
+ * @author KHUSHKIRAN PAL
+ *  DYNAMIC 
+ */
+public class MixedAllocation_BACKUP_DELAYING {
+	//GLOBAL PARAMETERS
+	/*public static final  long hyperperiod_factor= 10;	//
+			public static final   double  CRITICAL_TIME=  1.5*hyperperiod_factor;///1500;  //
+			public static final   double  CRITICAL_freq= 0.50;   //0.50;//
+
+			public static final int d = 0;  // FAULT TOLERANCE PARAMETER
+			private double freq=1; // TEMP PARAMETER
+	 */	
+
+
+	/**
+	 * @throws IOException
+	 */
+	/**
+	 * @throws IOException
+	 */
+	/**
+	 * @throws IOException
+	 */
+	/**
+	 * @param inputfilename
+	 * @param outputFolder
+	 * @param inputFolder
+	 * @param hyperperiod_factor
+	 * @param d
+	 * @param CRITICAL_TIME
+	 * @param CRITICAL_freq
+	 * @param faultFromFile
+	 * @param bcetRatio
+	 * @throws IOException
+	 */
+	public void schedule(String inputfilename,String outputFolder,String inputFolder,
+			long hyperperiod_factor, int d,double CRITICAL_TIME,double CRITICAL_freq,
+			boolean faultFromFile,double bcetRatio, long hyper, int n_proc) throws IOException
+	{
+		int m =n_proc;			///////////////// no. of processors/////////////////
+		System.out.println("STARTING MixedAllocation_BACKUP_DELAYING no. of processors "+m);
+		//String inputfilename= "testhaque";
+		FileTaskReaderTxt reader = new FileTaskReaderTxt(inputFolder+inputfilename); // read taskset from file
+		DateFormat dateFormat = new SimpleDateFormat("dd_MM_yyyy_HH_mm");
+		Calendar cal = Calendar.getInstance();
+		String date = dateFormat.format(cal.getTime());
+		String faultFilename= inputFolder+"fault"+".txt";
+		String filename= outputFolder+"allocationMixed_BACKUP_D"+"_"+inputfilename+"_"+date+".txt";
+		String filename4= outputFolder+"taskProcMixed_BACKUP_D"+"_"+inputfilename+"_"+date+".txt"; // TEMP USE
+		String filename1= outputFolder+"scheduleMixed_BACKUP_D"+"_"+inputfilename+"_"+date+".txt";
+		String filename2= outputFolder+"energyMixed_BACKUP_D"+"_"+inputfilename+"_"+date+".txt";
+		String filename3= outputFolder+"tasksMixed_BACKUP_D"+"_"+inputfilename+"_"+date+".txt";
+		String filename5= outputFolder+"analysisMixed_BACKUP_D"+"_"+inputfilename+"_"+date+".txt";
+		 String filename7= outputFolder+"faultMixed_BACKUP_D"+"_"+inputfilename+"_"+date+".txt";
+		// //System.out.println(filename);
+	//	Writer writer_allocation = new FileWriter(filename);
+	//	Writer writer_schedule = new FileWriter(filename1);
+		Writer writer_energy = new FileWriter(filename2);
+		Writer writer_tasks = new FileWriter(filename3);
+		//   Writer writer_analysis = new FileWriter(filename5);
+		 Writer writer_fault = new FileWriter(filename7);
+		//  Writer writer_taskProcWise = new FileWriter(filename4);
+		DecimalFormat twoDecimals = new DecimalFormat("#.##");  // upto 1 decimal points
+		DecimalFormat fourDecimals = new DecimalFormat("#.###");
+		Energy energyConsumed = new Energy();
+		SysClockFreq frequency = new SysClockFreq();
+		Job[] current= new Job[2], spare_current = new Job[2];  // FOR SAVING THE NEWLY INTIAlIZED JOB  FROM JOBQUEUE SO THAT IT 
+		// IS VISIBLE OUTSIDE THE BLOCK
+		ITask task;
+		ITask[] set = null;
+		double U_SUM;
+//		int m =2;// no. of processors
+		int total_no_tasksets=1;
+		Instance ints = new Instance();
+		  writer_energy.write("Mixed_BACKUP_DTASKSET UTILIZATION MIN_FREQ MAX_FREQ TOTAL_E"
+		  		+ " P_ACTIVE_TIME P_IDLE_TIME P_SLEEP S_ACTIVE_TIME S_IDLE_TIME S_SLEEP");
+			writer_tasks.write("Mixed_BACKUP_DfullBackupsExecuted partialBackupsExecuted fullBackupsCancelled"
+				+ "	 cancelledPrimariesFull   cancelledPrimariesPartial  fullPrimariesExecuted totalPrimaries noOfFaults");
+		//  writer_taskProcWise.write("proc primary  backup  total"); //  TEMP USE
+			writer_fault.write("\nMixed_backupTASKSET TIME PRI_PROC QUE TASKID JOBID WCET PROM DEADLINE");
+			
+
+
+
+
+		/*	///////////////////////////////////////ScheduleRMS_EASS_ haque//////////
+    		ScheduleRMS_EASS test = new ScheduleRMS_EASS();
+    			test.schedule(inputfilename,hyperperiod_factor, d,CRITICAL_TIME,CRITICAL_freq);
+    			///////////////////////////////////////ScheduleRMS_EASS_ haque//////////
+		 */		
+
+		while ((set = reader.nextTaskset()) != null) // SCHEDULING STARTS FOR ALL TASKSETS IN FILE
+		{
+			
+			/////////////// HYPER PERIOD////////////
+		//	long hyper =SystemMetric.hyperPeriod(taskset);  
+	
+			long fullBackupsExecuted=0;
+			long partialBackupsExecuted=0;
+			long fullBackupsCancelled=0;
+			long cancelledPrimariesFull=0;
+			long cancelledPrimariesPartial=0;
+			long fullPrimariesExecuted=0;
+			//long totalBackups=0;
+	    	long totalPrimaries=0;
+
+			long noOfFaults=0;
+			double energyTotal=0;
+			boolean deadlineMissed = false;
+			Job lastExecutedJob= null, primaryJob, backupJob;
+			ProcessorState proc_state = null;
+			long time=0 ;
+			long timeToNextPromotion=0, spareActiveTime = 0;
+			long timeToNextArrival=0;
+			long endTime = 0; // endtime of job
+			long spareEndTime=0;
+			long idle = 0;  // idle time counter for processor idle slots
+			SchedulabilityCheck schedule = new SchedulabilityCheck();
+	        int response_zero=0;
+			Processor primary = new Processor();
+			Processor spare = new Processor();
+
+			spare.setBusy(false);
+			spare.setProc_state(ProcessorState.SLEEP);
+
+			primary.setBusy(false);
+			primary.setProc_state(ProcessorState.SLEEP);
+
+
+			//LIST OF FREE PROCESSORS
+			Comparator<Processor> comparator = new Comparator<Processor>() {
+				@Override
+				public int compare(Processor p1, Processor p2) {
+					int cmp =  (int) (p1.getId()-p2.getId());
+					return cmp;
+				}
+			};
+
+			  ArrayList<Processor> freeProcList = new ArrayList<Processor>(); //LIST OF FREE PROCESSORS
+			  freeProcList.sort(comparator);
+    	
+			ArrayList<Processor> no_of_proc = new ArrayList<Processor>(); //total processor list
+			for(int i = 1;i<=m;i++)  // m is number of processors
+			{
+				Processor p = new Processor(i,false); // i gives the processor id value , false means processor is free
+				freeProcList.add(p);
+				no_of_proc.add(p);
+			}
+
+			ISortedQueue queue = new SortedQueuePeriod ();
+			queue.addTasks(set);
+			ArrayList<ITask> taskset = new ArrayList<ITask>();
+			ArrayList<Job> completedJobs = new ArrayList<Job>();
+			taskset = queue.getSortedSet();
+			U_SUM= (SystemMetric.utilisation(taskset));
+			//	total_no_tasks=total_no_tasks+ tasks.size();
+			prioritize(taskset);
+			ArrayList<Integer> fault = new ArrayList<Integer>();
+			Fault f = new Fault();
+			
+				/*if(hyper>100000)
+				 hyper = 100000;*/
+			System.out.println(" hyper  "+hyper);  
+
+			for(ITask t : taskset)
+			{
+				t.setWcet(t.getWcet()*hyperperiod_factor);
+				t.setWCET_orginal(t.getWCET_orginal()*hyperperiod_factor);
+				t.setPeriod(t.getPeriod()*hyperperiod_factor);
+				t.setDeadline(t.getDeadline()*hyperperiod_factor);
+				t.setD(t.getD()*hyperperiod_factor);
+				t.setT(t.getT()*hyperperiod_factor);
+				t.setC(t.getC()*hyperperiod_factor);
+
+			}
+
+			ParameterSetting ps = new ParameterSetting();
+			boolean unschedulable = false,schedulability= false;
+			ps.setBCET(taskset, bcetRatio);
+			ps.setACET(taskset);
+
+
+
+			double fq = 1, minfq=1, maxfq=0.1;
+
+
+
+			//	 fq= Math.max(U_SUM, CRITICAL_freq);
+			ps.set_freq(taskset,Double.valueOf(twoDecimals.format(fq)));   // set frequency
+			////System.out.println("frequency   " +fq+" usum  "+U_SUM);
+			schedulability = schedule.worstCaseResp_TDA_RMS(taskset);//, fq);
+
+			////System.out.println("on  one processor   "+schedulability+"  at fq "+fq);
+
+
+			//  	ps.setResponseTime(taskset);    
+			//	ps.setPromotionTime(taskset);       //SET PROMOTION TIMES
+
+			/*for(ITask t : taskset)
+    	{
+    	//System.out.println("in taskset id  "+t.getId()+" wcet  "+t.getWcet()+"  bcet  "+t.getBCET()+"  acet  "+t.getACET());
+    	//System.out.println("slack    "+t.getSlack()+"   response  "+t.getResponseTime());
+    	}
+			 */
+
+
+
+			//ALLOCATION STARTED 
+
+			Partitioning partition  = new Partitioning();
+	     	partition.allocation_M_WFD(taskset, freeProcList, filename);
+		/*	// SORT IN DECREASING ORDER OF UTILIZATION FOR MFWD wcet according to frequency
+
+			Comparator<ITask> c = new Comparator<ITask>() {
+				@Override
+				public int compare(ITask p1, ITask p2) {
+					int cmp;
+					//	//System.out.println("t1 "+p1.getId()+"  u1 "+Double.valueOf(fourDecimals.format(((double)p1.getWcet()/(double)p1.getDeadline()))));
+					//	//System.out.println("t2 "+p2.getId()+"  u2 "+Double.valueOf(fourDecimals.format(((double)p2.getWcet()/(double)p2.getDeadline()))));
+
+					double temp =  ( (Double.valueOf(twoDecimals.format(((double)p2.getWcet()/(double)p2.getDeadline()))))
+							-(Double.valueOf(twoDecimals.format(((double)p1.getWcet()/(double)p1.getDeadline()))))); // backup????? wcet uti??
+					//	//System.out.println("temp   "+temp);
+					if(temp>0)
+						cmp = 1;
+					else
+						cmp=-1;
+					 if(temp==0)
+							cmp=0;
+					//	//System.out.println(" cmp  "+cmp);
+						if (cmp==0)														
+							cmp= (int)(p1.getId()-p2.getId());	
+					return cmp;
+				}
+			};
+			taskset.sort(c);
+
+			for(ITask t : taskset)
+			{
+				//	//System.out.println("task  "+t.getId()+" u "+ (Double.valueOf(twoDecimals.format(((double)t.getWcet()/(double)t.getDeadline())))) );
+			}
+
+			// WHILE ALL PROCESSORS HAVE SCHEDULABLE TASKSETS ON GIVEN FREQUENCIES 
+			//	do{      
+
+			for(Processor pMin : freeProcList)
+			{
+
+				pMin.taskset.clear();
+				pMin.setWorkload(0);
+				//	//System.out.println("processor   "+pMin.getId()+"   size  "+pMin.taskset.size()+"  w  "+pMin.getWorkload());
+			}    		
+
+
+
+			//ALLOCATION OF PRIMARIES
+
+	//////////		writer_allocation.write("\nPRIMARY ");
+
+			for(ITask t : taskset)
+			{
+				double u = Double.valueOf(twoDecimals.format(((double)t.getWcet()/(double)t.getDeadline()))), work=1;
+				Processor minP=null;
+				//	//System.out.println(" u  "+u);
+
+				for(Processor pMin : freeProcList)
+				{
+					if(work >pMin.getWorkload())
+					{
+						work=Double.valueOf(twoDecimals.format(pMin.getWorkload()));
+						minP = pMin;
+					}
+					//	//System.out.println("work   "+work+"  minP  "+minP.getId()+ "  pMin  "+pMin.getId());
+
+				}
+				t.setPrimary(true);
+				t.setFrequency(fq);
+					minP.taskset.add(t);
+				 minP.setWorkload(Double.valueOf(twoDecimals.format(minP.getWorkload()+u)));
+				 t.setP(minP);
+				 t.setPrimaryProcessor(minP);
+	/////////			 writer_allocation.write("\n"+minP.getId()+" "+t.getId()+" "+u+" "+t.getWcet()+" "+t.getPeriod());
+
+			}
+
+
+
+			//ALLOCATION OF BACKUPS
+	////////////	writer_allocation.write("\nBACKUPS ");
+			// SORT IN DECREASING ORDER OF UTILIZATION FOR MFWD wcet_original
+
+			Comparator<ITask> c1 = new Comparator<ITask>() {
+				@Override
+				public int compare(ITask p1, ITask p2) {
+					int cmp;
+					//	//System.out.println("t1 "+p1.getId()+"  u1 "+Double.valueOf(fourDecimals.format(((double)p1.getWcet()/(double)p1.getDeadline()))));
+					//	//System.out.println("t2 "+p2.getId()+"  u2 "+Double.valueOf(fourDecimals.format(((double)p2.getWcet()/(double)p2.getDeadline()))));
+
+					double temp =  ( (Double.valueOf(twoDecimals.format(((double)p2.getWCET_orginal()/(double)p2.getDeadline()))))
+							-(Double.valueOf(twoDecimals.format(((double)p1.getWCET_orginal()/(double)p1.getDeadline()))))); // backup????? wcet uti??
+					//	//System.out.println("temp   "+temp);
+					if(temp>0)
+						cmp = 1;
+					else
+						cmp=-1;
+					//	//System.out.println(" cmp  "+cmp);
+					return cmp;
+				}
+			};
+			taskset.sort(c1);
+
+			for(ITask t : taskset)
+			{
+				double u = Double.valueOf(twoDecimals.format(((double)t.getWCET_orginal()/(double)t.getD()))), work=1;
+				ITask backup_task;
+				Processor minP=null;
+				//  		//System.out.println("t  "+t.getId()+" u backup  "+u);
+				for(Processor pMin : freeProcList)
+				{
+					if (pMin == t.getP())   // IF PRIMARY PROCESSOR CONTAINS THE TASK, ALLOCATE BACKUP ON SOME OTHER PROCESSOR
+						continue;
+					if(work >pMin.getWorkload())
+					{
+						work=Double.valueOf(twoDecimals.format(pMin.getWorkload()));
+						minP = pMin;
+					}
+					//			//System.out.println("work   "+work+"  minP  "+minP.getId()+ "  pMin  "+pMin.getId());
+
+				}
+				t.setBackupProcessor(minP);
+				backup_task = t.cloneTask_MWFD_RMS_EEPs_delay();
+				backup_task.setPrimary(false);  //setup backup processor
+				backup_task.setFrequency(1);
+				backup_task.setBackupProcessor(minP);
+				backup_task.setPrimaryProcessor(t.getP());
+
+				minP.taskset.add(backup_task);
+				minP.setWorkload(Double.valueOf(twoDecimals.format(minP.getWorkload()+u)));
+				backup_task.setP(minP);
+
+			///////	writer_allocation.write("\n"+minP.getId()+" "+t.getId()+" "+u+" "+t.getWcet()+" "+t.getPeriod());
+
+			}*/
+
+			//CHECK SCHEDULABILITY ON ALL PROCESSORS
+
+		/*	for(Processor pMin : freeProcList)
+			{
+
+				//	//System.out.println("processor   "+pMin.getId()+"   size  "+pMin.taskset.size()+"  w  "+pMin.getWorkload());
+				 		for(ITask t : pMin.taskset)
+
+        	{
+    			//System.out.println("task   "+t.getId()+"  u  "+ Double.valueOf(twoDecimals.format(((double)t.getWcet()/(double)t.getDeadline())))
+    			+"   primary  "+t.isPrimary()+"  Proc   "+t.getP().getId()+" prom "+t.getSlack());
+
+
+        	}
+
+				schedulability = schedule.worstCaseResp_TDA_RMS(pMin.taskset);
+				//	//System.out.println("proc   "+pMin.getId()+"   schedulability   "+schedulability);
+				if(schedulability==false)
+				{
+					unschedulable= true;
+					break;
+					}
+				else 
+				{
+					unschedulable=false;
+
+
+				}
+			}
+		*/
+			///END ALLOCATION
+
+			/////FREQUENCY ALLOCATION//////////////////
+
+			for(Processor p : freeProcList)
+			{
+				double load = (SystemMetric.utilisation(p.taskset));
+				//	//System.out.println("   load   " +load);
+				double slack = Math.max(0, (1- load));
+				//	//System.out.println("   slack   " +slack);
+				double utiPrimary=0;
+				for(ITask tp : p.taskset)
+				{
+					if(tp.isPrimary())
+						utiPrimary += 	Double.valueOf(twoDecimals.format(((double)tp.getWCET_orginal()/(double)tp.getD())));
+					/*         //System.out.println("  p  "+p.getId()+"  task   "+tp.getId()+"   wcet  "+tp.getWcet()+
+                " task u   "+	Double.valueOf(twoDecimals.format(((double)tp.getWCET_orginal()/(double)tp.getD())))+
+                		"   utiPrimary    "+utiPrimary);
+					 */     }
+				double newUtiPrimary= utiPrimary+slack;
+
+				fq = Math.max(CRITICAL_freq, (utiPrimary/newUtiPrimary));
+				//      //System.out.println("  newUtiPrimary  "+newUtiPrimary+"  fq   "+fq);
+
+				do
+				{
+					if(fq<minfq)
+						minfq=fq;
+					if(fq>maxfq)
+						maxfq=fq;
+			//		System.out.println("   frequency   "+fq);
+
+					for(ITask tp : p.taskset)
+					{
+						if(tp.isPrimary())
+							tp.setFrequency(fq);
+
+					}
+					ps.set_freq_MixedAlloc(p.taskset,Double.valueOf(twoDecimals.format(fq)));   // set frequency
+
+
+					schedulability = schedule.worstCaseResp_TDA_RMS(p.taskset);//, fq);
+
+					//   	//System.out.println("   schedulability   "+schedulability);
+					if (schedulability)
+					{
+						//		//System.out.println("setting response");
+						ps.setResponseTimeForMWFD(p.taskset);
+						ps.setPromotionTime(p.taskset);
+						//	//System.out.println("processor   "+p.getId()+"   size  "+p.taskset.size()+
+						//			"  w  "+p.getWorkload());
+						/*	for(ITask t : p.taskset)
+
+            	{
+        			//System.out.println("proc  "+p.getId()+"task   "+t.getId()+"   wcet  "+t.getWcet()+"  u  "+ Double.valueOf(twoDecimals.format(((double)t.getWcet()/(double)t.getDeadline())))
+        			+"   primary  "+t.isPrimary()+"  Proc   "+t.getP().getId()+" deadline  "+(t.getDeadline())+
+        				"  prom  "+t.getSlack());
+
+
+            	}*/
+					}
+					else
+					{
+						fq= fq+0.05;
+						//	//System.out.println("unschedulable "+p.getId()+"  fq  "+fq);
+						//	//System.exit(0);
+					}
+					if (fq>1)
+					{
+						fq=1;
+						ps.set_freq_MixedAlloc(p.taskset,Double.valueOf(twoDecimals.format(fq)));
+						schedulability = schedule.worstCaseResp_TDA_RMS(p.taskset);
+						ps.setResponseTimeForMWFD(p.taskset);
+						ps.setPromotionTime(p.taskset);
+						 break;
+					}
+
+				}while(!schedulability);
+
+				p.setFrequency(fq);
+			}
+
+
+			for(Processor p : freeProcList)
+			{
+			if (!schedulability || p.getFrequency()>1)
+			{
+				System.out.println(total_no_tasksets +" UNSCHEDULABLE\n");
+				writer_energy.write(total_no_tasksets++ +"U \n");
+				writer_tasks.write(total_no_tasksets++ +"U \n");
+				continue;
+
+
+			}
+			}
+
+			//////////////FAULT///////////////////////////
+			if(! faultFromFile)
+			fault = f.lamda_F(hyper, CRITICAL_freq, minfq, d);        //////////////FAULT////////////
+			else
+			fault=	f.readFromFile(faultFilename);
+			
+			
+		/*		//TEMP FAULT INDUCTION
+	     	ArrayList<Long> tempFault = new ArrayList<Long>();
+	    	ArrayList<Long> tempProcCheck = new ArrayList<Long>();
+	    		tempFault.add((long)20999);     	tempFault.add((long)37436); 
+	    		tempFault.add((long)95070);	        	tempFault.add((long)110776);  
+	    		tempFault.add((long)118686);        	tempFault.add((long)140354);
+	    		tempFault.add((long)160505);        	tempFault.add((long)170556);        
+	    		tempFault.add((long)104430);        	tempFault.add((long)121227);        
+	    	tempFault.add((long)150168);        	tempFault.add((long)153452);  
+	    	tempFault.add((long)167870);        	tempFault.add((long)179131);  
+	    	tempFault.add((long)187833);        	tempFault.add((long)215505);  
+	    	tempFault.add((long)219774);   tempFault.add((long)220517);
+	    	tempFault.add((long)224730);tempFault.add((long)256876);
+	    	tempFault.add((long)263897);tempFault.add((long)265750);
+	    	tempFault.add((long)275809);   tempFault.add((long)278832);
+	    	tempFault.add((long)281917);tempFault.add((long)288656);
+	    	tempFault.add((long)298938);	tempFault.add((long)2990261);    
+	    	
+	    	tempProcCheck.add((long)2);   	tempProcCheck.add((long)1);
+	    	tempProcCheck.add((long)1);tempProcCheck.add((long)1);
+	    	tempProcCheck.add((long)1);tempProcCheck.add((long)2);     
+	    	tempProcCheck.add((long)1);tempProcCheck.add((long)1);
+	    	tempProcCheck.add((long)1);tempProcCheck.add((long)2);
+	    	tempProcCheck.add((long)2);tempProcCheck.add((long)1);
+	    	tempProcCheck.add((long)1);tempProcCheck.add((long)2);  
+	    	tempProcCheck.add((long)2);
+	    	tempProcCheck.add((long)1);       	tempProcCheck.add((long)1);   
+	    	tempProcCheck.add((long)2);
+	    	tempProcCheck.add((long)1);	    	tempProcCheck.add((long)1); 
+	    	tempProcCheck.add((long)2);tempProcCheck.add((long)2);
+	    	tempProcCheck.add((long)2);tempProcCheck.add((long)2);
+	    	tempProcCheck.add((long)2);tempProcCheck.add((long)2);
+	    	tempProcCheck.add((long)2);
+	    	
+			Iterator<Long> tempProcItr = tempProcCheck.iterator(); 
+			
+			while (tempProcItr.hasNext())
+			{
+				System.out.println(" proc "+tempProcItr.next());
+			}
+			Iterator<Long> tempFaultItr = tempFault.iterator(); 
+			
+			while (tempFaultItr.hasNext())
+			{
+				System.out.println(" tempFault "+tempFaultItr.next()+"  size  "+tempFault.size());
+			}
+	     	
+	     	
+	     	*/
+
+			//	fault.add(10);
+		/*	writer_allocation.write("Proc TASK U WCET PERIOD FREQ IS_PRIMARY BACKUP_PR PRIMARY_PR");
+
+			for(Processor pMin : freeProcList)
+			{
+				writer_allocation.write("\n\nprocessor   "+pMin.getId()+"\t frequency   "+pMin.getFrequency()+"\n");
+				for(ITask t : pMin.taskset)
+
+				{
+					writer_allocation.write(pMin.getId()+" "+t.getId()+" "+ Double.valueOf(twoDecimals.format(((double)t.getWcet()/(double)t.getDeadline())))
+					+" "+t.getWCET_orginal()+" "+t.getPeriod()+" "+t.getFrequency()+" "+
+					" "+t.isPrimary()+	" "+t.getBackupProcessor().getId()+" "+t.getPrimaryProcessor().getId()+"\n");
+
+						System.out.println("task   "+t.getId()+"  u  "+ Double.valueOf(twoDecimals.format(((double)t.getWcet()/(double)t.getDeadline())))
+			+"   primary  "+t.isPrimary()+"  Proc   "+t.getP().getId()+	"   backup p  "+t.getBackupProcessor().getId()+
+			"   primary  "+t.getPrimaryProcessor().getId());
+					 
+				}
+				writer_allocation.write("\n"+"FAULT  \t\t");
+				for(int fa: pMin.getFault())
+				{
+					writer_allocation.write(fa+"\t\t");
+				}
+				writer_allocation.write("\nU "+Double.valueOf(twoDecimals.format((SystemMetric.utilisation(pMin.taskset)))));
+			}
+*/
+			//SORT THE TASKSETS ON PROCESSORS ACCODING TO PERIOD 
+			Comparator<ITask> comp = new Comparator<ITask>() {
+				@Override
+				public int compare(ITask j1, ITask j2) {
+					int cmp =  (int) (j1.getPeriod()-j2.getPeriod());
+					if(cmp==0)
+						cmp = 	(int) (j1.getDeadline()-j2.getDeadline());
+					// larger 9-5=4 than 9-2=7.
+					return cmp;
+				}
+			};
+
+
+			for(Processor pMin : freeProcList)
+			{
+				pMin.taskset.sort(comp);
+			}
+
+
+
+			long temp=0;
+			ISortedJobQueue activeJobQ = new SortedJobQueuePeriod(); // dynamic jobqueue 
+			TreeSet<Job> backupQueue = new TreeSet<Job>(new Comparator<Job>() {
+				@Override
+				public int compare(Job t1, Job t2) {
+
+					if( t1.getPromotionTime()!= t2.getPromotionTime())
+						return (int)( t1.getPromotionTime()- t2.getPromotionTime());
+
+					return (int) (t1.getPeriod() - t2.getPeriod());
+				}
+			}); 
+
+
+
+			Job j;//,  backupJob = null; //job
+			TreeSet<Long> activationTimes = new TreeSet<Long>();
+			//	TreeSet<Long> promotionTimes = new TreeSet<Long>();
+			ArrayList <Long> promotionTimes = new ArrayList<Long>();
+
+			long nextActivationTime=0;
+
+			long executedTime=0;
+
+			taskset = queue.getSortedSet();
+			
+	/*		for(Processor pMin : freeProcList)
+			{
+				for(ITask t : pMin.taskset)
+	    			
+	        	{
+	    			System.out.println("proc "+pMin.getId()+" task "+t.getId()+" wcet "+ Double.valueOf(twoDecimals.format(((double)t.getWcet())))
+	    			+" deadline "+ Double.valueOf(twoDecimals.format(((double)t.getDeadline())))
+	    			+" period "+ Double.valueOf(twoDecimals.format(((double)t.getPeriod())))
+	    			+"   primary  "+t.isPrimary()+" resp  "+t.getResponseTime());
+	    			
+	       
+	        	}
+	    		
+			}
+*/
+			//INSTANCE ADDING TO TASKS  eq 4 haque n[j,i]= s(i)/p(j)
+			for(Processor p : freeProcList)
+			{
+				for(ITask t : p.taskset)
+				{
+					//System.out.println("procc   "+p.getId()+"   task  "+t.getId());
+					if(!t.isPrimary())
+
+					{
+						int noOfInstances=0;
+						for(int i=0; p.taskset.get(i) != t; i++)
+						{
+							if(p.taskset.get(i).isPrimary())
+								continue;
+							//System.out.println("lp  "+t.getId()+"  resp  "+t.getResponseTime()+" hp "+ p.taskset.get(i).getId());
+							ints.setHighPriorTask(taskset.get(i).getId());
+							ints.setLowPriorTask(t.getId());
+							noOfInstances=(int) Math.ceil(t.getResponseTime()/p.taskset.get(i).getPeriod());
+									//System.out.println("  noOfInstances  "+noOfInstances);
+
+							ints.setNoOfInstances(noOfInstances);
+
+							t.addNoInstance(ints.clone());
+							//System.out.println("size  "+t.getNoInstance().size());
+						}   		
+					}
+				}
+
+				//    		//System.out.println("in taskset id  "+t.getId()+" wcet  "+t.getWcet()+"  bcet  "+t.getBCET()+"  acet  "+t.getACET());
+				//    	//System.out.println("promotion    "+t.getSlack()+"   response  "+t.getResponseTime());
+			}
+
+
+
+			// ACTIVATE ALL TASKS AT TIME 0 INITIALLY IN QUEUE  
+
+			for(ITask t : taskset)  // activate all tasks at time 0
+			{
+				temp=0;
+				j =  t.activate_MWFD_RMS_EEPS_BACKUPDELAY(time);  
+				totalPrimaries++;
+				////System.out.println("t "+t.getId()+"   j  "+j.getJobId());
+				j.setPriority(t.getPriority());
+				j.setCompletionSuccess(false);
+				Processor p;
+				p= j.getProc();  // get the processor on which task has been allocated
+				p.primaryJobQueue.addJob(j);
+				//			//System.out.println("task  "+t.getId()+"  job  "+j.getJobId()+"  p  "+p.getId()+"  queue size  "+p.primaryJobQueue.size());
+				//backup addition
+				backupJob = j.cloneJob_MWFD_RMS_EEPS_BACKUPDELAY();
+				backupJob.setPrimary(false);
+				backupJob.setCompletionSuccess(false);
+				backupJob.setFrequency(1);
+				backupJob.upperQ=false;
+				backupJob.setSpareexecutedTime(0);
+				p=j.getBackupProcessor();
+
+				Iterator<ITask> itr1 = p.taskset.iterator();
+				while (itr1.hasNext())
+				{
+					ITask t1 = itr1.next();
+					if(backupJob.getTaskId()==t1.getId())
+					{
+						backupJob.setPromotionTime((long) t1.getSlack());
+						//				//System.out.println("  task    "+backupJob.getTaskId()+ "  p time  "+backupJob.getPromotionTime());
+					}}
+
+				p.backupJobQueue.addJob(backupJob);
+				/*		//System.out.println("task  "+t.getId()+"  backup job  "+backupJob.getJobId()+" primary  "+backupJob.isPrimary()+
+							"  p  "+p.getId()+"  queue size  "+p.backupJobQueue.size()+" P TIME  "+backupJob.getPromotionTime());
+				 */		
+
+				activeJobQ.addJob(j);  //////ADD TO PRIMARY QUEUE
+				backupQueue.add(backupJob);   /////ADD TO SPARE  QUEUE
+
+				//adding instances for backup delaying
+				//THIS IS ALL FOR BACKUP TASKS ONLY
+				int noOfInstances=0;
+				
+				/*if (!t.isPrimary())
+				{*/
+					for(int i=0; p.taskset.get(i).getId() != t.getId(); i++)
+					{
+						//			//System.out.println(" in activation 0  lp  "+t.getId()+" hp "+ p.taskset.get(i).getId());
+						if (p.taskset.get(i).isPrimary())
+							continue;
+							
+						ints.setHighPriorTask(p.taskset.get(i).getId());
+						ints.setLowPriorTask(t.getId());
+						noOfInstances=0;
+						//   		//System.out.println("  noOfInstances  "+noOfInstances);
+
+						ints.setNoOfInstances(noOfInstances);
+						backupJob.addCurrentNoOfInstance(ints.clone());
+						//	t.addNoInstance(ints.clone());
+					}
+			//	}
+				/*	if(backupJob.getCurrentNoOfInstance().size()>0)
+    				{
+    				//System.out.println("SPARE   JOB    "+
+    						" size "+backupJob.getCurrentNoOfInstance().size()+
+    						"  task "+backupJob.getTaskId());
+
+    				for(Instance inst: backupJob.getCurrentNoOfInstance())
+    	    		{
+    	    			//System.out.println("hp  "+inst.getHighPriorTask()+"  lp  "
+    	    		+inst.getLowPriorTask()+" value  "+inst.getNoOfInstances());
+    	    		}
+    				}*/
+				// end backup instance adding
+
+
+
+
+
+				while (temp<=hyper*hyperperiod_factor)
+				{
+
+
+					temp+=t.getPeriod();
+					activationTimes.add(temp);
+					promotionTimes.add((long) (t.getSlack()));
+					promotionTimes.add((long) (t.getSlack()+temp));
+				}
+
+			}
+
+			//		//System.out.println("activationTimes  "+activationTimes.size()+"  promotionTimes  "+promotionTimes.size());
+			promotionTimes.sort(new Comparator <Long>() {
+				@Override
+				public int compare(Long t1, Long t2) {
+					if(t1!=t2)
+						return (int) (t1-t2);
+					else 
+						return 0;
+
+				}
+			});
+			/*Iterator itr = promotionTimes.iterator();
+		while(itr.hasNext())
+			//System.out.println("promotionTimes   "+itr.next());
+			 */
+		/*	writer_schedule.write("\nMixed_backupP_ID TASKID FREQ WCET ACET BCET DEADLINE P/B resp promo\n");
+			
+			for(Processor p : freeProcList)
+			{
+				for(ITask t :p.taskset)
+				{
+					if(t.getResponseTime()==0)
+						  response_zero++;
+					writer_schedule.write("\n"+p.getId()+" "+t.getId()+" "+t.getFrequency()+" "+t.getWcet()+" "+t.getACET() 
+					+" "+t.getBCET()+" "+t.getDeadline()+" "+t.isPrimary()+" "+t.getResponseTime()+" "+t.getSlack()				);
+				}
+			}
+				 if(response_zero>0)
+				 writer_schedule.write(" \nResponse time zero "+response_zero);
+	        
+			writer_schedule.write("\nP_ID TASKID  JOBID PR/BK FREQ WCET DEADLINE  isPreempted STARTTIME ENDTIME FAULTY fullBackupsExecuted partialBackupsExecuted fullBackupsCancelled"
+					+ "	 cancelledPrimariesFull   cancelledPrimariesPartial  fullPrimariesExecuted noOfFaults \n");
+*/
+			//	writer_analysis.write("P_ID TASKID JOBID PR/BK TIME");
+			nextActivationTime=  activationTimes.pollFirst();
+			// //System.out.println("nextActivationTime  "+nextActivationTime);
+			timeToNextPromotion = promotionTimes.get(0);
+			for (Processor proc : freeProcList)
+			{
+				// //System.out.println("p  "+proc.getId()+"   primary   "+proc.primaryJobQueue.size()+"  backup   "+proc.backupJobQueue.size());
+			}
+
+
+			//START SCHEDULING///////////////////////////////START SCHEDULING///////////////////
+
+			while(time<hyper*hyperperiod_factor+2)
+			{
+				//System.out.println("time    "+time);
+
+
+				//new activation
+				if( time== nextActivationTime) // AFTER 0 TIME JOB ACTIVAIONS
+				{
+
+					if (!activationTimes.isEmpty())
+						nextActivationTime=  activationTimes.pollFirst();
+
+					// //System.out.println("//new activation  nextActivationTime  "+nextActivationTime+" size  "+activationTimes.size());
+
+					for (ITask t : taskset) 
+					{
+
+						Job n = null;
+						long activationTime;
+						activationTime = t.getNextActivation(time-1);  //GET ACTIVATION TIME
+
+						//	//System.out.print("  activationTime  "+activationTime);
+						long temp1= activationTime, temp2 =time;
+						if (temp1==temp2)
+							n= t.activate_MWFD_RMS_EEPS_BACKUPDELAY(time); ///	remainingTime =  (long)ACET;  ////////////////
+
+						if (n!=null)
+						{
+							totalPrimaries++;
+							n.setPriority(t.getPriority());
+							n.setCompletionSuccess(false);
+							Processor p;
+							p= n.getProc();  // get the processor on which task has been allocated
+							p.primaryJobQueue.addJob(n);
+							/*		 //System.out.println("//new activation activated   task  "+t.getId()+"   time   "
+						+time+"  job  "+n.getJobId()+"  p  "+p.getId()+"  primaryJobQueue queue size  "+p.primaryJobQueue.size());
+							 */			//backup addition
+							backupJob = n.cloneJob_MWFD_RMS_EEPS_BACKUPDELAY();
+							backupJob.setPrimary(false);
+							backupJob.setCompletionSuccess(false);
+							backupJob.setFrequency(1);
+							backupJob.upperQ=false;
+							backupJob.setSpareexecutedTime(0);
+							p=n.getBackupProcessor();
+
+
+
+							Iterator<ITask> itr1 = p.taskset.iterator();
+							while (itr1.hasNext())
+							{
+								ITask t1 = itr1.next();
+								if(backupJob.getTaskId()==t1.getId())
+								{
+									long temp11 = (backupJob.getJobId()-1)*backupJob.getPeriod();// no. of jobs run till this time
+									backupJob.setPromotionTime((long) t1.getSlack()+temp11);
+									//	//System.out.println("  task    "+backupJob.getTaskId()+ "  p time  "+backupJob.getPromotionTime());
+								}}
+
+							p.backupJobQueue.addJob(backupJob);
+							/*	 //System.out.println("//new activation  task  "+t.getId()+"  backup job  "+backupJob.getJobId()+" primary  "+backupJob.isPrimary()+
+								"  p  "+p.getId()+"  backupJobQueue queue size  "+p.backupJobQueue.size());
+							 */	
+
+							//adding instances for backup delaying
+							int noOfInstances=0;
+
+							/*if (!t.isPrimary())
+							{*/
+								for(int i=0; p.taskset.get(i).getId() != t.getId(); i++)
+								{
+									//			//System.out.println(" in activation 0  lp  "+t.getId()+" hp "+ p.taskset.get(i).getId());
+									if (p.taskset.get(i).isPrimary())
+										continue;
+										
+									ints.setHighPriorTask(p.taskset.get(i).getId());
+									ints.setLowPriorTask(t.getId());
+									noOfInstances=0;
+									//   		//System.out.println("  noOfInstances  "+noOfInstances);
+
+									ints.setNoOfInstances(noOfInstances);
+									backupJob.addCurrentNoOfInstance(ints.clone());
+									//	t.addNoInstance(ints.clone());
+								}
+						//	}
+
+							/*		if(backupJob.getCurrentNoOfInstance().size()>0)
+	    				{
+	    				//System.out.println("SPARE   JOB    "+
+	    						" size "+backupJob.getCurrentNoOfInstance().size()+
+	    						"  task "+backupJob.getTaskId());
+
+	    				for(Instance inst: backupJob.getCurrentNoOfInstance())
+	    	    		{
+	    	    			//System.out.println("hp  "+inst.getHighPriorTask()+"  lp  "
+	    	    		+inst.getLowPriorTask()+" value  "+inst.getNoOfInstances());
+	    	    		}
+	    				}
+							 */		// end backup instance adding
+
+
+							activeJobQ.addJob(n);  //////ADD TO PRIMARY QUEUE
+							backupQueue.add(backupJob);   /////ADD TO SPARE  QUEUE
+
+						}
+					}
+
+				} 
+
+				// ADD JOB TO READY QUEUE
+				for (Processor proc : freeProcList)
+				{
+					// 		//System.out.println(" time  "+time+"   primary size  "+proc.primaryJobQueue.size());
+					if (!proc.primaryJobQueue.isEmpty())
+					{
+						//			//System.out.println(" time  "+time);
+						while (!proc.primaryJobQueue.isEmpty() && time == proc.primaryJobQueue.first().getActivationDate())
+						{
+							//			//System.out.println(" time adding primary  to ready  "+time);
+							proc.readyQueue.addJob(proc.primaryJobQueue.pollFirst());
+						///	totalPrimaries++;
+						}
+
+					}
+					if (!proc.backupJobQueue.isEmpty())
+					{
+						//	//System.out.println(" time  "+time+"  proc.backupJobQueue.first().getPromotionTime()   "+proc.backupJobQueue.first().getPromotionTime());
+						while (!proc.backupJobQueue.isEmpty() && 
+								time== proc.backupJobQueue.first().getPromotionTime())
+						{
+							//		//System.out.println(" time  "+time);
+							Job newBJob = proc.backupJobQueue.pollFirst();
+						//	totalBackups++;
+							newBJob.upperQ=true;
+							if (!newBJob.isCompletionSuccess() || newBJob.isFaulty())
+								proc.readyQueue.addJob(newBJob);
+							//System.out.println("time  "+time+"   backup job in ready queue  "+newBJob.getTaskId()+"  job  "+newBJob.getJobId());
+						}
+
+						Iterator<Job> itr1 = proc.readyQueue.iterator();
+						while(itr1.hasNext())
+						{
+							Job jR = itr1.next();
+							/*			//System.out.println("time ready queue  "+time +"  proc  "+proc.getId()+"  task "+jR.getTaskId()+
+        						"   job  "+jR.getJobId() +"  p/B  "+jR.isPrimary()+"  arrivaal  "+jR.getActivationDate()
+        						+"  promo  time   "+jR.getPromotionTime());
+							 */		}
+
+					}}
+				
+				/*////////////TEMP PRINTING
+				if (time>950698 && time<950701 )
+				{
+					for (Processor proc : freeProcList)
+				{
+						System.out.println(" time  "+time+  " p "+proc.getId()+"  backup size   "+proc.backupJobQueue.size());
+						
+					if (!proc.backupJobQueue.isEmpty())
+					{
+						Iterator<Job> itr1B = proc.backupJobQueue.iterator();
+						
+						while (itr1B.hasNext())
+						{
+							Job jR = itr1B.next();
+							System.out.println("time backup queue  "+time +"  proc  "+proc.getId()+"  task "+jR.getTaskId()+
+									"   job  "+jR.getJobId() +"  p/B  "+jR.isPrimary()+"  arrivaal  "+jR.getActivationDate()
+									+"  promo  time   "+jR.getPromotionTime());
+						}
+					}
+
+					System.out.println(" time  "+time+  " p "+proc.getId()+" ready size   "+proc.readyQueue.size());
+					if (!proc.readyQueue.isEmpty())
+						
+					{
+						
+						Iterator<Job> itr2R = proc.readyQueue.iterator();
+						while(itr2R.hasNext())
+						{
+							Job jR = itr2R.next();
+							System.out.println("time ready queue  "+time +"  proc  "+proc.getId()+"  task "+jR.getTaskId()+
+									"   job  "+jR.getJobId() +"  p/B  "+jR.isPrimary()+"  arrivaal  "+jR.getActivationDate()
+									+"  promo  time   "+jR.getPromotionTime());
+						}
+
+					}
+				}
+				}*/
+
+
+
+
+
+				//////////////////PREEMPTION////////////////////////
+				for (Processor proc : freeProcList)
+				{
+
+					if(time>0 && !proc.readyQueue.isEmpty()  &&
+							!proc.getCurrentJob().isCompletionSuccess() &&  
+							proc.getCurrentJob().getPeriod()>proc.readyQueue.first().getPeriod())
+					{
+						// //System.out.println("  //PREEMPTION/   ");	
+						Job lowP = proc.getCurrentJob() , highP = proc.readyQueue.first();
+						if(lowP.isPrimary())
+							{
+							lowP.setRemainingTime(lowP.getRemainingTime()- (time-lowP.getStartTime()));
+							proc.setActiveEnergy(energyConsumed.energyActive((time-lowP.getStartTime()), lowP.getFrequency()));
+		        			//System.out.println("in preemption TIME  "+time+"  p  "+proc.getId()+" active  "+ proc.activeTime+"  energy  "+proc.getActiveEnergy());
+
+							}
+						else
+						{
+							lowP.setRomainingTimeCost(lowP.getRomainingTimeCost()- (time-lowP.getStartTime()));
+							lowP.validStartTime=false;
+							if(!lowP.isPreempted)
+							lowP.setSpareexecutedTime(time-lowP.getStartTime());
+							
+							proc.setActiveEnergy(energyConsumed.energyActive((time-lowP.getStartTime()), lowP.getFrequency()));
+		        			
+						/*	if( lowP.getTaskId()==3176 && time<100000)
+							System.out.println("in preemption TIME  "+time+"  p  "+proc.getId()
+							+" t "+proc.getCurrentJob().getTaskId()+"  j "+proc.getCurrentJob().getJobId()
+		        			+" lowP.getStartTime()"+lowP.getStartTime()+ "  lowP.getSpareexecutedTime() "+lowP.getSpareexecutedTime());
+		        	*/		//+" active  "+ proc.activeTime+"  energy  "+proc.getActiveEnergy());
+
+						}
+						highP = proc.readyQueue.pollFirst();
+						proc.readyQueue.addJob(lowP);
+						lowP.isPreempted=true;
+
+					/*	if(lowP.isPrimary())
+							writer_schedule.write("\n"+proc.getId()+" "+proc.getCurrentJob().getTaskId()+" "+proc.getCurrentJob().getJobId()+" "+
+									proc.getCurrentJob().isPrimary()+" "+Double.valueOf(twoDecimals.format(	proc.getCurrentJob().getFrequency()))
+									+" "+	proc.getCurrentJob().getRemainingTime()+" "+	proc.getCurrentJob().getDeadline()
+									+" "+	proc.getCurrentJob().isPreempted+" "+proc.getCurrentJob().getStartTime());
+						else
+							writer_schedule.write("\n"+proc.getId()+" "+proc.getCurrentJob().getTaskId()+" "+proc.getCurrentJob().getJobId()+" "+
+									proc.getCurrentJob().isPrimary()+" "+Double.valueOf(twoDecimals.format(	proc.getCurrentJob().getFrequency()))
+									+" "+	proc.getCurrentJob().getRomainingTimeCost()+" "+	proc.getCurrentJob().getDeadline()
+									+" "+	proc.getCurrentJob().isPreempted+" "+proc.getCurrentJob().getStartTime());
+						writer_schedule.write("\t "+time +"  preempted ");*/
+						// start high priority
+
+						proc.setCurrentJob(highP);
+
+
+
+						if(!proc.getCurrentJob().isPreempted && proc.getCurrentJob().isPrimary())
+							proc.setNoOfPriJobs(proc.getNoOfPriJobs()+1);
+						else if (!proc.getCurrentJob().isPreempted && !proc.getCurrentJob().isPrimary())
+							proc.setNoOfBackJobs(proc.getNoOfBackJobs()+1);
+
+
+						proc.getCurrentJob().setStartTime(time);
+
+					/*	if(highP.isPrimary())
+							writer_schedule.write("\n"+proc.getId()+" "+proc.getCurrentJob().getTaskId()+" "+proc.getCurrentJob().getJobId()+" "+
+									proc.getCurrentJob().isPrimary()+" "+Double.valueOf(twoDecimals.format(	proc.getCurrentJob().getFrequency()))
+									+" "+	proc.getCurrentJob().getRemainingTime()+" "+	proc.getCurrentJob().getDeadline()
+									+" "+	proc.getCurrentJob().isPreempted+" "+proc.getCurrentJob().getStartTime());
+						else
+							writer_schedule.write("\n"+proc.getId()+" "+proc.getCurrentJob().getTaskId()+" "+proc.getCurrentJob().getJobId()+" "+
+									proc.getCurrentJob().isPrimary()+" "+Double.valueOf(twoDecimals.format(	proc.getCurrentJob().getFrequency()))
+									+" "+	proc.getCurrentJob().getRomainingTimeCost()+" "+	proc.getCurrentJob().getDeadline()
+									+" "+	proc.getCurrentJob().isPreempted+" "+proc.getCurrentJob().getStartTime());
+*/
+						//set end time
+
+						if(proc.getCurrentJob().isPrimary())
+							proc.getCurrentJob().setEndTime(time+proc.getCurrentJob().getRemainingTime());
+						else
+						{
+							proc.getCurrentJob().validStartTime=true;
+							proc.getCurrentJob().setEndTime(time+proc.getCurrentJob().getRomainingTimeCost());
+							 proc.getCurrentJob().backupExecuted=true;
+						/*	if ( proc.getCurrentJob().getTaskId()==3176 && time<100000)
+							System.out.println("1029 preemption  time  "+time+" t "+proc.getCurrentJob().getTaskId()+
+									"  getSpareexecutedTime " +proc.getCurrentJob().getSpareexecutedTime()
+									+" proc.getCurrentJob().validStartTime "+proc.getCurrentJob().validStartTime);
+							*/	
+						}
+						proc.setEndTimeCurrentJob(proc.getCurrentJob().getEndTime()-1);
+						proc.setBusy(true);
+
+					}
+
+				}
+
+				// PRIMARY JOB CHECKING AND EXECUTIOM
+				for (Processor proc : freeProcList)
+				{
+					if(!proc.readyQueue.isEmpty() && proc.isBusy()==false )
+					{
+
+						proc.setCurrentJob( proc.readyQueue.pollFirst());
+							//if(!proc.getCurrentJob().isPrimary())
+        		/*	 //System.out.println("time  "+time+ "  p  "+proc.getId()+" task "+proc.getCurrentJob().getTaskId() +
+        					"   job  "+proc.getCurrentJob().getJobId()+ " isCompletionSuccess() "+proc.getCurrentJob().isCompletionSuccess()+
+        					 "  p/b "+proc.getCurrentJob().isPrimary());
+					*/	 
+						if (proc.getCurrentJob()!=null && 
+								proc.getCurrentJob().isCompletionSuccess()==false)      // if job in queue is null 
+						{
+							// //System.out.println("time   "+time+"   p  "+proc.getId()+"  task  "+proc.getCurrentJob().getTaskId()+"  job   "+proc.getCurrentJob().getJobId());
+							/*				 writer_analysis.write("\n"+proc.getId()+" "+proc.getCurrentJob().getTaskId()+" "
+        						 +proc.getCurrentJob().getJobId()+" "+proc.getCurrentJob().isPrimary()
+        						 +" "+time);	
+							 */				proc.setIdleEndTime(time); // IF PROCESSOR WAS FREE , END IDLE SLOT
+
+							 // RECORD THE SLOT LENGTH
+							 if (proc.getIdleSlotLength()>0)
+							 {
+								 //	writer.write("\n\t\t\t\t\t\t\t"+processor.getId()+"\t\t\t\t\t"+processor.getIdleStartTime()+"\t"+time+" \t"+processor.getIdleSlotLength());
+				/*				 writer_schedule.write("\n"+proc.getId()+" "+proc.getIdleStartTime()+" "+time+
+										 " "+proc.getIdleSlotLength()+" idleend");
+					*/			 proc.setIdleSlotLength(0); // REINITIALIZE THE IDLE LENGTH
+							 }
+
+							 if(!proc.getCurrentJob().isPreempted && proc.getCurrentJob().isPrimary())
+								 proc.setNoOfPriJobs(proc.getNoOfPriJobs()+1);
+							 else if (!proc.getCurrentJob().isPreempted && !proc.getCurrentJob().isPrimary())
+								 proc.setNoOfBackJobs(proc.getNoOfBackJobs()+1);
+
+							 proc.setProc_state(ProcessorState.ACTIVE);
+							 proc.getCurrentJob().setStartTime(time);
+							 //set end time
+
+							 if(proc.getCurrentJob().isPrimary())
+								 proc.getCurrentJob().setEndTime(time+proc.getCurrentJob().getRemainingTime());
+							 else
+							 {
+								 proc.getCurrentJob().setEndTime(time+proc.getCurrentJob().getRomainingTimeCost());
+								 proc.getCurrentJob().backupExecuted=true;
+			
+					/*			 if ( proc.getCurrentJob().getTaskId()==3176 && time<100000)
+								 System.out.println(" 1084 starting new time  "+time+" t "+proc.getCurrentJob().getTaskId()+"  j "+proc.getCurrentJob().getJobId()+
+										 "  getSpareexecutedTime " +proc.getCurrentJob().getSpareexecutedTime());
+				*/			 }
+							 proc.setEndTimeCurrentJob(proc.getCurrentJob().getEndTime()-1);
+							 proc.setBusy(true);
+
+					/*		 	 if(proc.getCurrentJob().isPrimary())
+								 writer_schedule.write("\n"+proc.getId()+" "+proc.getCurrentJob().getTaskId()+" "+proc.getCurrentJob().getJobId()+" "+
+										 proc.getCurrentJob().isPrimary()+" "+Double.valueOf(twoDecimals.format(	proc.getCurrentJob().getFrequency()))
+										 +" "+	proc.getCurrentJob().getRemainingTime()+" "+	proc.getCurrentJob().getDeadline()
+										 +" "+	proc.getCurrentJob().isPreempted+" "+time+" ");
+							 else
+								 writer_schedule.write("\n"+proc.getId()+" "+proc.getCurrentJob().getTaskId()+" "+proc.getCurrentJob().getJobId()+" "+
+										 proc.getCurrentJob().isPrimary()+" "+Double.valueOf(twoDecimals.format(	proc.getCurrentJob().getFrequency()))
+										 +" "+	proc.getCurrentJob().getRomainingTimeCost()+" "+	proc.getCurrentJob().getDeadline()
+										 +" "+	proc.getCurrentJob().isPreempted+" "+time+" ");
+*/
+
+						}
+					}
+					else if (proc.readyQueue.isEmpty() && proc.isBusy()==false )
+					{//---------------
+
+
+						// //System.out.println("  p  " +proc.getId()+"  proc.getIdleSlotLength()  "+proc.getIdleSlotLength());
+						if (proc.getIdleSlotLength()==0)
+						{
+							// //System.out.println("idle slot started");
+
+		//			writer_schedule.write("\n"+proc.getId()+ " "+time+" idlestart");
+							proc.setIdleSlotLength(proc.getIdleSlotLength()+1);// INCREMENT THE  LENGTH OF IDLE SLOT FROM 0 TO 1
+							proc.setIdleStartTime(time);
+						}
+						else
+							proc.setIdleSlotLength(proc.getIdleSlotLength()+1); // INCREMENT THE  LENGTH OF IDLE SLOT 
+
+
+						////////////	writer1.write("\n setIdleStartTime "+time);
+						//		proc.setIdleStartTime(time);
+						if (proc.getTimeToNextArrival()>CRITICAL_TIME)
+							proc.setProc_state(ProcessorState.SLEEP);
+						else
+							proc.setProc_state(ProcessorState.IDLE);
+						// //System.out.println("// PRIMARY JOB CHECKING AND EXECUTIOM ELSE PART   p  "+proc.getId()+"   timeToNextArrival   "+proc.getTimeToNextArrival()+"   Proc_state  "+proc.getProc_state());
+					}
+				}
+
+
+				// count busy time
+				for (Processor proc : freeProcList)
+				{
+					if (proc.getProc_state()==ProcessorState.ACTIVE)
+					{
+						proc.activeTime++;
+						 //System.out.println("TIME  "+time+"  p  "+proc.getId()+" active  "+ proc.activeTime);
+
+					}
+					if (proc.getProc_state()==ProcessorState.IDLE)
+					{
+						proc.idleTime++;
+					 //System.out.println("TIME  "+time+"  p  "+proc.getId()+"  idle "+ proc.idleTime);;
+
+					}
+					if (proc.getProc_state()==ProcessorState.SLEEP)
+					{	
+						proc.sleepTime++;
+							 //System.out.println("TIME  "+time+"  p  "+proc.getId()+" sleep  "+proc.sleepTime );;
+
+					}
+				}
+
+				/////////////////////////////FAULT INDUCTION///////////////////////
+				//			if(time == 			11000)
+				//{
+				Random rand = new Random();
+
+
+				if ( fault.size()>0 )
+				{
+	        		//	System.out.println("out fault time  "+time+"  task  "+lastExecutedJob.getTaskId()+" job  "+lastExecutedJob.getJobId());
+
+	        		if(time==fault.get(0)*hyperperiod_factor)
+
+	        		{
+	        			int tempPr= 1+rand.nextInt(m), count = m;
+	        			for ( Processor p : freeProcList)
+	        			{
+	        				if (p.getId()==tempPr )
+	        				{
+	        					count--;
+	        					if (p.getProc_state()==ProcessorState.ACTIVE && p.getCurrentJob().isPrimary() && !p.getCurrentJob().isFaulty())
+	        					{	
+	        						System.out.println("    fault time  "+time+"  proc  "+p.getId()+"            task  "+
+	        								p.getCurrentJob().getTaskId()+" job  "+p.getCurrentJob().getJobId() + "  prom time  "+p.getCurrentJob().getPromotionTime());
+
+	        						p.getCurrentJob().setCompletionSuccess(false);
+	        						p.getCurrentJob().setFaulty(true);
+	        					//	noOfFaults++;
+	        						
+	        						Iterator<Job> spareItr = p.getCurrentJob().getBackupProcessor().backupJobQueue.iterator();
+	        						while(spareItr.hasNext())
+	        						{
+	        							Job temp1;
+	        							temp1  = spareItr.next();
+	        							// System.out.println("primaary pending  task  "+temp1.getTaskId());
+
+	        							if(temp1.getTaskId()== p.getCurrentJob().getTaskId() && temp1.getJobId()== p.getCurrentJob().getJobId())
+	        							{
+	        								temp1.setFaulty(true);
+	        								noOfFaults++;
+	        								writer_fault.write("\n"+total_no_tasksets+" "+time+" "+p.getId()+" "+ " B "+" "+temp1.getTaskId()+" "+temp1.getJobId()+" "
+	        										+temp1.getRemainingTime()+" "+temp1.getPromotionTime()+" "+temp1.getDeadline());
+	        						
+	        					//			 System.out.println("time    "+time+"backupJobQueue task  "+temp1.getTaskId()+"  job   "+temp1.getJobId() );
+	        					//			System.out.println("noOfFaults "+noOfFaults+" is primary "+temp1.isPrimary());
+	        								 break;
+	        							}
+	        						}
+	        						
+	        						
+	        						// faulty job's backup copy may be in ready queue
+	        						Iterator<Job> spareItready = p.getCurrentJob().getBackupProcessor().readyQueue.iterator();
+	        						while(spareItready.hasNext())
+	        						{
+	        							Job temp1;
+	        							temp1  = spareItready.next();
+	        							// System.out.println("primaary pending  task  "+temp1.getTaskId());
+
+	        							if(temp1.getTaskId()== p.getCurrentJob().getTaskId() && temp1.getJobId()== p.getCurrentJob().getJobId())
+	        							{
+	        								temp1.setFaulty(true);
+	        								noOfFaults++;
+	        								writer_fault.write("\n"+total_no_tasksets+" "+time+" "+p.getId()+" "+ " R "+" "+temp1.getTaskId()+" "+temp1.getJobId()+" "
+	        										+temp1.getRemainingTime()+" "+temp1.getPromotionTime()+" "+temp1.getDeadline());
+	        						
+	        					System.out.println("time    "+time+"readyQueue task  "+temp1.getTaskId()+"  job   "+temp1.getJobId() );
+	        								System.out.println("noOfFaults "+noOfFaults+" is primary "+temp1.isPrimary());
+	        								break;
+	        							}
+	        						}
+	        						
+	        						// faulty job may be running 
+	        						if(p.getCurrentJob().getBackupProcessor().getCurrentJob().getTaskId()== p.getCurrentJob().getTaskId() &&
+	        								p.getCurrentJob().getBackupProcessor().getCurrentJob().getJobId()== p.getCurrentJob().getJobId()
+	        								&& !p.getCurrentJob().getBackupProcessor().getCurrentJob().isPrimary() )
+	    							{
+	        							Job temp1 = p.getCurrentJob().getBackupProcessor().getCurrentJob();
+	        							p.getCurrentJob().getBackupProcessor().getCurrentJob().setFaulty(true);
+	        							noOfFaults++;
+	        							writer_fault.write("\n"+total_no_tasksets+" "+time+" "+p.getId()+" "+ " RUN "+" "+temp1.getTaskId()+" "+temp1.getJobId()+" "
+	    										+temp1.getRemainingTime()+" "+temp1.getPromotionTime()+" "+temp1.getDeadline());
+	    						
+	        					//		System.out.println("time    "+time+" running task  "+p.getCurrentJob().getBackupProcessor().getCurrentJob().getTaskId()+"  job   "+p.getCurrentJob().getBackupProcessor().getCurrentJob().getJobId() );
+	    						//		System.out.println("noOfFaults "+noOfFaults+" is primary "+p.getCurrentJob().getBackupProcessor().getCurrentJob().isPrimary());
+	    			
+	    							}
+	        						break;
+	        					}
+	        					else
+	        					{
+	        						tempPr= 1+rand.nextInt(m);
+	        						continue;
+	        					}
+
+
+
+	        				}
+	        	//			System.out.println("count  "+count);
+	        				if (count==0)
+	        					break;
+	        			}
+
+	        			fault.remove(0);
+	        		}
+	        	}
+				
+				
+			/*	 // TEMP FAULT INDUCTION
+	        	
+			        	if ( tempFault.size()>0 )
+			        	{
+			      //  	System.out.println("out fault time  "+time+"  TEMPFAULT SIZE "+tempFault.size()+"  tempProcCheck size  "+tempProcCheck.size());
+
+			        		if(time==tempFault.get(0)*hyperperiod_factor)
+
+			        		{
+			        			
+			        			for ( Processor p : freeProcList)
+			        			{
+			        				if (tempProcCheck.size()>0 && p.getId()==tempProcCheck.get(0) )
+			        				{
+			        				
+			        					if (p.getProc_state()==ProcessorState.ACTIVE && p.getCurrentJob().isPrimary() && !p.getCurrentJob().isFaulty())
+			        					{	
+			        						System.out.println("          fault time  "+time+"  proc  "+p.getId()+"       task  "+
+			        								p.getCurrentJob().getTaskId()+" job  "+p.getCurrentJob().getJobId() +
+			        								"  p/b "+p.getCurrentJob().isPrimary()+"  prom time  "+p.getCurrentJob().getPromotionTime());
+
+			        						p.getCurrentJob().setCompletionSuccess(false);
+			        						p.getCurrentJob().setFaulty(true);
+			        					//	noOfFaults++;
+			        						Iterator<Job> spareItr = p.getCurrentJob().getBackupProcessor().backupJobQueue.iterator();
+			        						while(spareItr.hasNext())
+			        						{
+			        							Job temp1;
+			        							temp1  = spareItr.next();
+			        							// System.out.println("primaary pending  task  "+temp1.getTaskId());
+
+			        							if(temp1.getTaskId()== p.getCurrentJob().getTaskId() && temp1.getJobId()== p.getCurrentJob().getJobId())
+			        							{
+			        								temp1.setFaulty(true);
+			        								noOfFaults++;
+			        								writer_fault.write("\n"+total_no_tasksets+" "+time+" "+temp1.getTaskId()+" "+temp1.getJobId()+" "
+			        										+temp1.getRemainingTime()+" "+temp1.getPromotionTime()+" "+temp1.getDeadline());
+			        								System.out.println("     backupqueue       fault time  "+time+"  proc  "+p.getId()+"            task  "+
+			        										temp1.getTaskId()+" job  "+temp1.getJobId() + 
+					        								"  p/b "+temp1.isPrimary()+"  prom time  "+temp1.getPromotionTime());
+
+			        					//			 System.out.println("time    "+time+"backupJobQueue task  "+temp1.getTaskId()+"  job   "+temp1.getJobId() );
+			        					//			System.out.println("noOfFaults "+noOfFaults+" is primary "+temp1.isPrimary());
+			        								 break;
+			        							}
+			        						}
+			        						
+			        						
+			        						// faulty job's backup copy may be in ready queue
+			        						Iterator<Job> spareItready = p.getCurrentJob().getBackupProcessor().readyQueue.iterator();
+			        						while(spareItready.hasNext())
+			        						{
+			        							Job temp1;
+			        							temp1  = spareItready.next();
+			        							// System.out.println("primaary pending  task  "+temp1.getTaskId());
+
+			        							if(temp1.getTaskId()== p.getCurrentJob().getTaskId() && temp1.getJobId()== p.getCurrentJob().getJobId())
+			        							{
+			        								temp1.setFaulty(true);
+			        								System.out.println("     readyqueue       fault time  "+time+"  proc  "+p.getId()+"            task  "+
+			        										temp1.getTaskId()+" job  "+temp1.getJobId() + 
+					        								"  p/b "+temp1.isPrimary()+"  prom time  "+temp1.getPromotionTime());
+
+			        									            							
+			        								noOfFaults++;
+			        					System.out.println("time    "+time+"readyQueue task  "+temp1.getTaskId()+"  job   "+temp1.getJobId() );
+			        								System.out.println("noOfFaults "+noOfFaults+" is primary "+temp1.isPrimary());
+			        								break;
+			        							}
+			        						}
+			        						
+			        						// faulty job may be running 
+			        						if(p.getCurrentJob().getBackupProcessor().getCurrentJob().getTaskId()== p.getCurrentJob().getTaskId() &&
+			        								p.getCurrentJob().getBackupProcessor().getCurrentJob().getJobId()== p.getCurrentJob().getJobId()
+			        								&& !p.getCurrentJob().getBackupProcessor().getCurrentJob().isPrimary() )
+			    							{
+			        							p.getCurrentJob().getBackupProcessor().getCurrentJob().setFaulty(true);
+			        							
+			        							noOfFaults++;
+			        							System.out.println("    running                fault time  "+time+"  proc  "+p.getId()+"            task  "+
+				        								p.getCurrentJob().getTaskId()+" job  "+p.getCurrentJob().getJobId() + "  prom time  "+p.getCurrentJob().getPromotionTime());
+
+			        					//		System.out.println("time    "+time+" running task  "+p.getCurrentJob().getBackupProcessor().getCurrentJob().getTaskId()+"  job   "+p.getCurrentJob().getBackupProcessor().getCurrentJob().getJobId() );
+			    						//		System.out.println("noOfFaults "+noOfFaults+" is primary "+p.getCurrentJob().getBackupProcessor().getCurrentJob().isPrimary());
+			    			
+			    							}
+			        						break;
+			        					}
+			        					
+			        				}
+			        				
+			        			}
+			        			tempProcCheck.remove(0);
+			        			tempFault.remove(0);
+			        		}
+			        	}
+*/
+				// CHECK DEADLINE MISS
+				for (Processor proc : freeProcList)
+				{
+		        	if(proc.isBusy())
+		        	{
+		        		// System.out.println("// CHECK DEADLINE MISS   time  "+time +"task id "+proc.getCurrentJob().getTaskId()+" job id " + proc.getCurrentJob().getJobId());
+		        	}
+						//+ "  job id  "+j1.getJobId()+  "   task id  " + j1.getTaskId() +"  deadline  "+j1.getAbsoluteDeadline());
+						if (proc.getCurrentJob()!=null && !proc.getCurrentJob().isCompletionSuccess() && proc.getCurrentJob().getAbsoluteDeadline()<time) // IF TIME IS MORE THAN THE DEADLINE, ITS A MISSING DEADLINE
+						{
+							 System.out.println("current job   deadline missed p "+proc.getId());
+							System.out.println("deadline missed  task id "+proc.getCurrentJob().getTaskId()+" job id " + proc.getCurrentJob().getJobId()
+									 +"\tactivation "+proc.getCurrentJob().getActivationDate()+"  deadline time  "+proc.getCurrentJob().getAbsoluteDeadline()
+									 +"  time "+time);
+							 writer_energy.write("\ndeadline missed  task id "+proc.getCurrentJob().getTaskId()+" job id " + proc.getCurrentJob().getJobId()
+									 +"\tactivation "+proc.getCurrentJob().getActivationDate()+"  deadline time  "+proc.getCurrentJob().getAbsoluteDeadline()
+									 +"  time "+time);	
+							 writer_tasks.write("\ndeadline missed  task id "+proc.getCurrentJob().getTaskId()+" job id " + proc.getCurrentJob().getJobId()
+									 +"\tactivation "+proc.getCurrentJob().getActivationDate()+"  deadline time  "+proc.getCurrentJob().getAbsoluteDeadline()
+									 +"  time "+time);	
+							 writer_fault.write("\ndeadline missed  task id "+proc.getCurrentJob().getTaskId()+" job id " + proc.getCurrentJob().getJobId()
+									 +"\tactivation "+proc.getCurrentJob().getActivationDate()+"  deadline time  "+proc.getCurrentJob().getAbsoluteDeadline()
+									 +"  time "+time);
+							 
+		/*					writer_schedule.write("deadline missed  task id "+proc.getCurrentJob().getTaskId()+" job id " + proc.getCurrentJob().getJobId()
+									 +"\tactivation "+proc.getCurrentJob().getActivationDate()+"  deadline time  "+proc.getCurrentJob().getAbsoluteDeadline()
+									 +"  time "+time);
+							writer_schedule.write("\n "+time+"\t"+"\t"+proc.getCurrentJob().getTaskId()+"\t"+proc.getCurrentJob().getJobId()+"\t"+proc.getCurrentJob().getActivationDate()+
+							"\t"+proc.getCurrentJob().getRemainingTime()+"\t"+proc.getCurrentJob().getAbsoluteDeadline()+"\t"+proc.getCurrentJob().getProc().getId()+
+							"\t"+proc.getCurrentJob().getStartTime()+"\t"+proc.getCurrentJob().getEndTime()+"\t"+proc.getCurrentJob().NoOfPreemption);
+		*/					
+							 deadlineMissed= true;
+								writer_energy.close();
+								writer_tasks.close();
+								writer_fault.close();
+				//				System.exit(0);
+						
+						
+					}
+						if(!proc.backupJobQueue.isEmpty()&& time >=hyper-1)
+		        		{
+		        		//	System.out.println("time   "+time+"  p   "+proc.getId()+"   proc.readyQueue   "+proc.readyQueue.size());
+		        			Iterator<Job> itrtemp =  proc.backupJobQueue.iterator();
+		        		while(itrtemp.hasNext())
+		        			{
+		        				Job jtemp =itrtemp.next();
+		        			//	System.out.println("t  "+jtemp.getTaskId()+"   job  "+jtemp.getJobId());
+		        				
+		        				if (jtemp!=null && !jtemp.isCompletionSuccess() && jtemp.getAbsoluteDeadline()<time) // IF TIME IS MORE THAN THE DEADLINE, ITS A MISSING DEADLINE
+		        				{
+		        					System.out.println(" backup queue time   "+time+"  p   "+proc.getId()+"   proc.readyQueue size   "+proc.readyQueue.size());
+		        					System.out.println(" jtemp is primary  "+jtemp.isPrimary()+ "  promotion "+jtemp.getPromotionTime());
+		        					System.out.println("deadline missed  task id "+jtemp.getTaskId()+" job id " + jtemp.getJobId()
+		        							 +"\tactivation "+jtemp.getActivationDate()+"  deadline time  "+jtemp.getAbsoluteDeadline()
+		        							 +"  time "+time);
+		        			
+		        					 writer_energy.write("\ndeadline missed  task id "+proc.getCurrentJob().getTaskId()+" job id " + proc.getCurrentJob().getJobId()
+											 +"\tactivation "+proc.getCurrentJob().getActivationDate()+"  deadline time  "+proc.getCurrentJob().getAbsoluteDeadline()
+											 +"  time "+time);	
+									 writer_tasks.write("\ndeadline missed  task id "+proc.getCurrentJob().getTaskId()+" job id " + proc.getCurrentJob().getJobId()
+											 +"\tactivation "+proc.getCurrentJob().getActivationDate()+"  deadline time  "+proc.getCurrentJob().getAbsoluteDeadline()
+											 +"  time "+time);	
+									 writer_fault.write("\ndeadline missed  task id "+proc.getCurrentJob().getTaskId()+" job id " + proc.getCurrentJob().getJobId()
+											 +"\tactivation "+proc.getCurrentJob().getActivationDate()+"  deadline time  "+proc.getCurrentJob().getAbsoluteDeadline()
+											 +"  time "+time);
+			/*						 
+		        					writer_schedule.write("\ndeadline missed  task id "+jtemp.getTaskId()+"  deadline time  "+jtemp.getAbsoluteDeadline()+"  time "+time);
+		        					writer_schedule.write("\n "+time+"\t"+"\t"+jtemp.getTaskId()+"\t"+jtemp.getJobId()+"\t"+jtemp.getActivationDate()+
+		        					"\t"+jtemp.getRemainingTime()+"\t"+jtemp.getAbsoluteDeadline()+"\t"+jtemp.getProc().getId()+
+		        					"\t"+jtemp.getStartTime()+"\t"+jtemp.getEndTime()+"\t"+jtemp.NoOfPreemption);
+		        */					
+		        					 deadlineMissed= true;
+		        						writer_energy.close();
+		        						writer_tasks.close();
+		        						writer_fault.close();
+		        						System.exit(0);
+		        				
+		        				
+		        			}
+		        		}
+						
+		        		}	
+						if(!proc.readyQueue.isEmpty()&& time >=hyper-1)
+		        		{
+		        		//	System.out.println("time   "+time+"  p   "+proc.getId()+"   proc.readyQueue   "+proc.readyQueue.size());
+		        			Iterator<Job> itrtemp =  proc.readyQueue.iterator();
+		        		while(itrtemp.hasNext())
+		        			{
+		        				Job jtemp =itrtemp.next();
+		        			//	System.out.println("t  "+jtemp.getTaskId()+"   job  "+jtemp.getJobId());
+		        				
+		        				if (jtemp!=null && !jtemp.isCompletionSuccess() && jtemp.getAbsoluteDeadline()<time) // IF TIME IS MORE THAN THE DEADLINE, ITS A MISSING DEADLINE
+		        				{
+		        					System.out.println(" ready queue time   "+time+"  p   "+proc.getId()+"   proc.readyQueue size   "+proc.readyQueue.size());
+		        					System.out.println(" jtemp is primary  "+jtemp.isPrimary()+ "  promotion "+jtemp.getPromotionTime());
+		        					System.out.println("deadline missed  task id "+jtemp.getTaskId()+" job id " + jtemp.getJobId()
+		        							 +"\tactivation "+jtemp.getActivationDate()+"  deadline time  "+jtemp.getAbsoluteDeadline()
+		        							 +"  time "+time);
+		        			
+		        					 writer_energy.write("\ndeadline missed  task id "+proc.getCurrentJob().getTaskId()+" job id " + proc.getCurrentJob().getJobId()
+											 +"\tactivation "+proc.getCurrentJob().getActivationDate()+"  deadline time  "+proc.getCurrentJob().getAbsoluteDeadline()
+											 +"  time "+time);	
+									 writer_tasks.write("\ndeadline missed  task id "+proc.getCurrentJob().getTaskId()+" job id " + proc.getCurrentJob().getJobId()
+											 +"\tactivation "+proc.getCurrentJob().getActivationDate()+"  deadline time  "+proc.getCurrentJob().getAbsoluteDeadline()
+											 +"  time "+time);	
+									 writer_fault.write("\ndeadline missed  task id "+proc.getCurrentJob().getTaskId()+" job id " + proc.getCurrentJob().getJobId()
+											 +"\tactivation "+proc.getCurrentJob().getActivationDate()+"  deadline time  "+proc.getCurrentJob().getAbsoluteDeadline()
+											 +"  time "+time);
+									 
+		        	/*				writer_schedule.write("\ndeadline missed  task id "+jtemp.getTaskId()+"  deadline time  "+jtemp.getAbsoluteDeadline()+"  time "+time);
+		        					writer_schedule.write("\n "+time+"\t"+"\t"+jtemp.getTaskId()+"\t"+jtemp.getJobId()+"\t"+jtemp.getActivationDate()+
+		        					"\t"+jtemp.getRemainingTime()+"\t"+jtemp.getAbsoluteDeadline()+"\t"+jtemp.getProc().getId()+
+		        					"\t"+jtemp.getStartTime()+"\t"+jtemp.getEndTime()+"\t"+jtemp.NoOfPreemption);
+		        		*/			
+		        					 deadlineMissed= true;
+		        						writer_energy.close();
+		        						writer_tasks.close();
+		        						writer_fault.close();
+		        						System.exit(0);
+		        				
+		        				
+		        			}
+		        		}
+						
+		        		}	
+		        	}
+
+
+				//at end time of any job in any processor
+				for (Processor proc : freeProcList)
+				{
+					
+						if(time== proc.getEndTimeCurrentJob() && proc.isBusy())
+					{
+		///		System.out.println("in TIME  "+time+"  p  "+proc.getId()+" active  "+ proc.activeTime+"  energy  "+proc.getActiveEnergy());
+
+						proc.setProc_state(ProcessorState.IDLE);
+						proc.setBusy(false);
+						proc.getCurrentJob().setCompletionSuccess(true);
+						proc.setActiveEnergy(energyConsumed.energyActive(((time-proc.getCurrentJob().getStartTime())+1), proc.getCurrentJob().getFrequency()));
+						//System.out.println("in TIME  "+time+"  p  "+proc.getId()+" active  "+ proc.activeTime+"  energy  "+proc.getActiveEnergy());
+
+		/*		System.out.println(" //at end time of any job    p  "+proc.getId()+"   end time  "+proc.getEndTimeCurrentJob()
+        		+"  primary   "+proc.getCurrentJob().isPrimary()+"  task  "+proc.getCurrentJob().getTaskId()+"  job  "+proc.getCurrentJob().getJobId());
+			*/			 	if(proc.getCurrentJob().isPrimary())
+						 {
+
+
+							 fullPrimariesExecuted++;
+		/*					 writer_schedule.write("\n"+proc.getId()+" "+proc.getCurrentJob().getTaskId()+" "+proc.getCurrentJob().getJobId()+" "+
+									 proc.getCurrentJob().isPrimary()+" "+Double.valueOf(twoDecimals.format(	proc.getCurrentJob().getFrequency()))
+									 +" "+	proc.getCurrentJob().getRemainingTime()+" "+	proc.getCurrentJob().getDeadline()
+									 +" "+	proc.getCurrentJob().isPreempted+" "+proc.getCurrentJob().getStartTime()+" ");
+							 writer_schedule.write(""+proc.getCurrentJob().getEndTime()+" "+proc.getCurrentJob().isFaulty() );
+		*/				 }
+						 else
+						 {
+
+							 fullBackupsExecuted++;
+							 // 	//System.out.println("time  "+time  +"  proc  "+proc.getId()+"  fullBackupsExecuted   "+fullBackupsExecuted);
+
+					/*		 writer_schedule.write("\n"+proc.getId()+" "+proc.getCurrentJob().getTaskId()+" "+proc.getCurrentJob().getJobId()+" "+
+									 proc.getCurrentJob().isPrimary()+" "+Double.valueOf(twoDecimals.format(	proc.getCurrentJob().getFrequency()))
+									 +" "+	proc.getCurrentJob().getRomainingTimeCost()+" "+	proc.getCurrentJob().getDeadline()
+									 +" "+	proc.getCurrentJob().isPreempted+" "+proc.getCurrentJob().getStartTime()+" ");
+							 writer_schedule.write(""+proc.getCurrentJob().getEndTime()+" "+proc.getCurrentJob().isFaulty() );
+							 writer_schedule.write(" "+fullBackupsExecuted +" "+partialBackupsExecuted +" "+fullBackupsCancelled+" "
+									 + cancelledPrimariesFull +" "+  cancelledPrimariesPartial +" "+ fullPrimariesExecuted +" "+noOfFaults);
+*/
+							
+
+
+						 }
+						 if(proc.getCurrentJob().isPrimary() && !proc.getCurrentJob().isFaulty())
+						 {
+							 // delete the backup job if not started
+							 boolean cancel = false;
+			//			System.out.println("p  "+proc.getCurrentJob().getBackupProcessor().getId()+"  size  "+proc.getCurrentJob().getBackupProcessor().backupJobQueue.size());
+							 Iterator<Job> itr_backup = proc.getCurrentJob().getBackupProcessor().backupJobQueue.iterator();
+							 while(itr_backup.hasNext())
+							 {
+								 Job backup = itr_backup.next();
+
+								 //	//System.out.println("backup.isFaulty()  "+backup.isFaulty());
+								 if(!backup.isFaulty() && backup.getTaskId()==proc.getCurrentJob().getTaskId() && backup.getJobId()==proc.getCurrentJob().getJobId())
+								 {
+								/*	 System.out.println("time  "+time  +"    delete the backup job if not started  C2 FULL CANCEL-1");
+									 System.out.println(" time  "+time+"   p  "+proc.getId()+ "  backup p  " +proc.getCurrentJob().getBackupProcessor().getId()+
+											 "  delete task  "+	backup.getTaskId() +"  job  "+ backup.getJobId());
+							*/		 backup.setCompletionSuccess(true);
+
+
+
+									 if ( backup.backupExecuted)
+									 {
+										 if(!backup.isPreempted)
+										 backup.setSpareexecutedTime((time-backup.getStartTime()));
+										 else // if multiple preemptions
+										 {
+											 if (backup.validStartTime)
+												 backup.setSpareexecutedTime((time-backup.getStartTime()));
+												 
+										 }
+										 // for single preemption backup.setSpareexecutedTime has already 
+										 //done during preemption
+									 
+									 }
+										 else
+										 backup.setSpareexecutedTime(0);
+									
+									 if(!backup.isPreempted)
+									 backup.setGamma(backup.getRomainingTimeCost()-backup.getSpareexecutedTime());
+									 else
+									 {
+										 if(backup.validStartTime)
+											 backup.setGamma(backup.getRomainingTimeCost()-backup.getSpareexecutedTime());
+										 else
+										 backup.setGamma(backup.getRomainingTimeCost());
+									 }
+									 
+								/*	 if(backup.getTaskId()==3176 && time <100000)
+									 {
+										 System.out.println("1503  spareEndTime CurrentJob  "+ backup.getTaskId()+
+												 " j "+backup.getJobId()+ "   executed   "+ backup.getSpareexecutedTime()+
+												 "   gamma   "+backup.getGamma()+ " TIME "+time);
+											 System.out.println("onBackup.getStartTime() "+backup.getStartTime()+
+													 " proc.getCurrentJob().getStartTime() "+proc.getCurrentJob().getStartTime()+
+											 " onBackup.getRomainingTimeCost() "+backup.getRomainingTimeCost() +
+											 " onBackup.getSpareexecutedTime() "+backup.getSpareexecutedTime());
+									 }*/
+
+									 // SET INSTANCE FOR BACKUP DELAY
+									 // create taskset(i,j) section 5.1
+									 ArrayList<Job> backupQueue_BKL = new ArrayList<Job>();
+									 Iterator<Job> backitre =  proc.getCurrentJob().getBackupProcessor().backupJobQueue.iterator();
+									 while(backitre.hasNext())
+									 {
+										 Job job_bkl = backitre.next();
+										 if(job_bkl==backup)
+											 continue;
+										 if((time)>= backup.getPromotionTime()  && (time) >= job_bkl.getPromotionTime())
+										 {
+											 backupQueue_BKL.add(job_bkl);
+								//			 System.out.println("time backupJobQueue "+time+"  condition 1 task  "+job_bkl.getTaskId()+"  p time "+job_bkl.getPromotionTime());
+										 }
+										 if((time)<backup.getPromotionTime() && job_bkl.getPromotionTime()<=backup.getPromotionTime())
+										 {
+											 backupQueue_BKL.add(job_bkl);
+								//			 System.out.println("time backupJobQueue "+time+" condition 2   task  "+job_bkl.getTaskId()+"  p time "+job_bkl.getPromotionTime());
+
+										 }
+
+									 }
+									 
+									 Iterator<Job> backitree =  proc.getCurrentJob().getBackupProcessor().readyQueue.iterator();
+									 while(backitree.hasNext())
+									 {
+										 Job job_bkl = backitree.next();
+							//			System.out.println("1352  ready queue task  "+job_bkl.getTaskId()+"  job  "+job_bkl.getJobId()+"  primary  "+job_bkl.isPrimary());
+										 if(job_bkl.isPrimary())
+											 continue;
+										 if((time)>= backup.getPromotionTime()  && (time) >= job_bkl.getPromotionTime())
+										 {
+											 backupQueue_BKL.add(job_bkl);
+								//			 System.out.println("time readyQueue  "+time+"  condition 1 task  "+job_bkl.getTaskId()+"  promtime "+job_bkl.getPromotionTime());
+										 }
+										 if((time)<backup.getPromotionTime() && job_bkl.getPromotionTime()<=backup.getPromotionTime())
+										 {
+											 backupQueue_BKL.add(job_bkl);
+							//				 System.out.println("time  readyQueue"+time+" condition 2   task  "+job_bkl.getTaskId()+"  promtime "+job_bkl.getPromotionTime());
+
+										 }
+
+									 }
+									 
+									
+									 Iterator<Job> spareitre = backupQueue_BKL.iterator();
+
+									 while(spareitre.hasNext())
+									 {
+										 Job  bk = spareitre.next();
+							//			 System.out.println(" 1375 task bk backupQueue_BKL  C2 FULL CANCEL-1 "+bk.getTaskId()+" job"+bk.getJobId()+ "  instances "+bk.getCurrentNoOfInstance().size());
+										
+										 for (Instance in: bk.getCurrentNoOfInstance())
+										 {
+							//				 System.out.println("hp i  "+in.getHighPriorTask()+" lp k "+in.getLowPriorTask()+"  n i k "+in.getNoOfInstances());
+											 if(in.getHighPriorTask()==backup.getTaskId() )
+											 {
+
+												 in.setNoOfInstances(in.getNoOfInstances()+1);
+								//				 System.out.println("set hp i  "+in.getHighPriorTask()+" lp k "+in.getLowPriorTask()+" [ n i k] "+in.getNoOfInstances());
+
+												 long nki=1;
+												 for(Instance ink : bk.getNoInstance())
+												 {
+								//					 System.out.println(" nota task bk  "+bk.getTaskId()+" job"+bk.getJobId());
+
+													 if(ink.getHighPriorTask()== backup.getTaskId())
+													 {
+														 nki=ink.getNoOfInstances();
+								//						 System.out.println("nota hp i  "+ink.getHighPriorTask()+" lp k "+ink.getLowPriorTask()+" [ n i k ]"+ink.getNoOfInstances());
+
+													 }
+												 }
+
+												 Processor tempProc = bk.getBackupProcessor();
+												 long nkl= in.getNoOfInstances();
+												 if(nkl<=nki && bk.upperQ)
+												 {
+										//				System.out.println("bk   "+bk.getTaskId()+"   prom  time"+bk.getPromotionTime()+"  upper  "+bk.upperQ);
+
+													 bk.upperQ=false;
+													 if((time+1+backup.getGamma()+bk.getRomainingTimeCost())>bk.getAbsoluteDeadline())
+													 {
+										//				 System.out.println("breaking 1404");
+														 break;
+													 }
+														 else
+													 {
+														 bk.setPromotionTime(time+backup.getGamma());
+														 promotionTimes.add(bk.getPromotionTime());
+										//				  System.out.println("setting  bk   "+bk.getTaskId()+"   prom  time"+bk.getPromotionTime()+"  primary  "+bk.isPrimary());
+
+														 //remove bk from ready queue to backupqueue
+
+										//				 System.out.println("tempProc "+tempProc.getId()+"   backupJobQueue size "+tempProc.backupJobQueue.size()+"   readyQueue  "+ tempProc.readyQueue.size());
+
+														 tempProc.backupJobQueue.addJob(bk);
+														 tempProc.readyQueue.remove(bk);
+													 }
+													 //		 System.out.println("tempProc "+tempProc.getId()+"   backupJobQueue size "+tempProc.backupJobQueue.size()+"   readyQueue  "+ tempProc.readyQueue.size());
+
+													 //	  //System.out.println("setting  bk   "+bk.getTaskId()+"   prom  time"+bk.getPromotionTime());
+												 }
+												 else if(nkl<=nki && !bk.upperQ)	
+												 {
+													 if((bk.getPromotionTime()+backup.getGamma()+bk.getRomainingTimeCost())>bk.getAbsoluteDeadline())
+													 {
+												//		 System.out.println(" breaking bk   "+bk.getTaskId()+"   prom  time"+bk.getPromotionTime());
+														 break;
+													 }
+													 else
+													 {
+													 boolean rem ;
+													 rem=    tempProc.backupJobQueue.removeR(bk);
+													// System.out.println("1439  remove "+rem);
+														if(!rem)
+														{
+											//				 System.out.println("1439  remove "+rem);
+															/*
+																				  System.out.println("in removing time   "+time+"   task  "+spar.getTaskId()+"   job   "+spar.getJobId()+ "  deadline  "+spar.getAbsoluteDeadline()
+									      		        	    +" spare success   "+spar.isCompletionSuccess()+"  faulty  "+spar.isFaulty() +"  size "+spareQueue.size());
+															*/	 				
+																Iterator<Job> spareitrtemp = tempProc.backupJobQueue.iterator();
+															
+																 while(spareitrtemp.hasNext())
+																 {
+																	 Job  temps = spareitrtemp.next();
+																
+																	 if(temps==bk)
+																	 {
+																		  spareitrtemp.remove();
+																
+																		  break;
+																	 }
+																	 			
+																	 }
+																														
+														}
+
+													 bk.setPromotionTime(bk.getPromotionTime()+backup.getGamma());
+													 tempProc.backupJobQueue.addJob(bk);
+										//			 System.out.println("setting  bk   "+bk.getTaskId()+"   prom  time"+bk.getPromotionTime());
+	
+												 }
+												 }
+
+											 }
+										 }
+									 }
+									 // SET INSTANCE FOR BACKUP DELAY end
+
+									 proc.getCurrentJob().getBackupProcessor().backupJobQueue.remove(backup);
+
+									 /*if(backup.isPreempted==true)
+        						partialBackupsExecuted++;
+        					else*/
+									 cancel=true;
+									 fullBackupsCancelled++;
+					/*				 writer_schedule.write(" "+fullBackupsExecuted +" "+partialBackupsExecuted +" "+fullBackupsCancelled+" "
+											 + cancelledPrimariesFull +" "+  cancelledPrimariesPartial +" "+ fullPrimariesExecuted +" "+noOfFaults);
+					*/				 /*		//System.out.println("time   "+time+"   fullPrimariesExecuted  "+fullPrimariesExecuted+
+            		    			"  proc.getCurrentJob().getEndTime()  "+proc.getCurrentJob().getEndTime());
+									  */		break;
+								 }
+							 }
+							 if (!cancel)
+							 {
+								
+								 Iterator<Job> itr_back = proc.getCurrentJob().getBackupProcessor().readyQueue.iterator();
+								 while(itr_back.hasNext())
+								 {
+									 Job backup = itr_back.next();
+
+						//			 System.out.println("ready queue backup.isFaulty()  "+backup.isFaulty());
+									 if(!backup.isFaulty() && backup.getTaskId()==proc.getCurrentJob().getTaskId() && backup.getJobId()==proc.getCurrentJob().getJobId())
+									 {
+						/*		System.out.println(" time  "+time+"   p  "+proc.getId()+ "  backup p  " +proc.getCurrentJob().getBackupProcessor().getId()+
+             						"  delete task  "+	backup.getTaskId() +"  job  "+ backup.getJobId());
+						*/				  			backup.setCompletionSuccess(true);
+							//			  System.out.println("partial execution of bij from ready queue");
+
+						if ( backup.backupExecuted)
+						{
+							if (!backup.isPreempted)
+								backup.setSpareexecutedTime((time-backup.getStartTime()));
+							else // if multiple preemptions
+							{
+								if (backup.validStartTime)
+									backup.setSpareexecutedTime((time-backup.getStartTime()));
+
+							}
+							// for single preemption backup.setSpareexecutedTime has already 
+							//done during preemption
+						}
+						else
+							backup.setSpareexecutedTime(0);
+
+										  
+						if(!backup.isPreempted)
+							backup.setGamma(backup.getRomainingTimeCost()-backup.getSpareexecutedTime());
+						else
+						{ 
+							if(backup.validStartTime)
+								backup.setGamma(backup.getRomainingTimeCost()-backup.getSpareexecutedTime());
+							else
+								backup.setGamma(backup.getRomainingTimeCost());
+						}
+								
+										/*  if(backup.getGamma()<0)
+											 {
+											  System.out.println(" 1694 spareEndTime CurrentJob  "+ backup.getTaskId()+
+													  "   executed   "+ backup.getSpareexecutedTime()+
+													  "   gamma   "+backup.getGamma()+ " TIME "+time);
+
+											 System.out.println("onBackup.getStartTime() "+backup.getStartTime()+
+													 " onBackup.getRomainingTimeCost() "+backup.getRomainingTimeCost() +
+													 " onBackup.getSpareexecutedTime() "+backup.getSpareexecutedTime());
+											 }*/
+										  
+										  // SET INSTANCE FOR BACKUP DELAY
+										  // create taskset(i,j) section 5.1
+										  ArrayList<Job> backupQueue_BKL = new ArrayList<Job>();
+										  Iterator<Job> backitre =  proc.getCurrentJob().getBackupProcessor().backupJobQueue.iterator();
+										  while(backitre.hasNext())
+										  {
+											  Job job_bkl = backitre.next();
+											  if(job_bkl==backup)
+												  continue;
+											  if((time)>= backup.getPromotionTime()  && (time) >= job_bkl.getPromotionTime())
+											  {
+												  backupQueue_BKL.add(job_bkl);
+				//		System.out.println("time partial execution of bij from backupJobQueue queue "+time+"  condition 1 task  "+job_bkl.getTaskId()+"  p time "+job_bkl.getPromotionTime());
+											  }
+											  if((time)<backup.getPromotionTime() && job_bkl.getPromotionTime()<=backup.getPromotionTime())
+											  {
+												  backupQueue_BKL.add(job_bkl);
+						//				System.out.println("time partial execution of bij from backupJobQueue queue "+time+" condition 2   task  "+job_bkl.getTaskId()+"  p time "+job_bkl.getPromotionTime());
+
+											  }
+
+										  }
+										  Iterator<Job> backitree =  proc.getCurrentJob().getBackupProcessor().readyQueue.iterator();
+										  while(backitree.hasNext())
+										  {
+											  Job job_bkl = backitree.next();
+											  if(job_bkl.isPrimary())
+												  continue;
+											  if((time)>= backup.getPromotionTime()  && (time) >= job_bkl.getPromotionTime())
+											  {
+												  backupQueue_BKL.add(job_bkl);
+												 //System.out.println("time   partial execution of bij readyQueue"+time+"  condition 1 task  "+job_bkl.getTaskId()+"  p time "+job_bkl.getPromotionTime());
+											  }
+											  if((time)<backup.getPromotionTime() && job_bkl.getPromotionTime()<=backup.getPromotionTime())
+											  {
+												  backupQueue_BKL.add(job_bkl);
+													//System.out.println("time  partial execution of bij readyQueue "+time+" condition 2   task  "+job_bkl.getTaskId()+"  p time "+job_bkl.getPromotionTime());
+
+											  }
+
+										  }
+
+										  Iterator<Job> spareitre = backupQueue_BKL.iterator();
+
+										  while(spareitre.hasNext())
+										  {
+											  Job  bk = spareitre.next();
+											 	//System.out.println(" task bk partial execution of bij backupQueue_BKL "+bk.getTaskId()+" job"+bk.getJobId());
+											  for (Instance in: bk.getCurrentNoOfInstance())
+											  {
+													//System.out.println("hp i partial execution of bij backupQueue_BK "+in.getHighPriorTask()+" lp k "+in.getLowPriorTask()+"  n i k "+in.getNoOfInstances());
+												  if(in.getHighPriorTask()==backup.getTaskId() )
+												  {
+
+													  in.setNoOfInstances(in.getNoOfInstances()+1);
+														//System.out.println("set hp i  "+in.getHighPriorTask()+" lp k "+in.getLowPriorTask()+" [ n i k] "+in.getNoOfInstances());
+
+													  long nki=1;
+													  for(Instance ink : bk.getNoInstance())
+													  {
+														//System.out.println(" nota task bk  "+bk.getTaskId()+" job"+bk.getJobId());
+
+														  if(ink.getHighPriorTask()== backup.getTaskId())
+														  {
+															  nki=ink.getNoOfInstances();
+														//System.out.println("nota hp i  "+ink.getHighPriorTask()+" lp k "+ink.getLowPriorTask()+" [ n i k ]"+ink.getNoOfInstances());
+
+														  }
+													  }
+
+														 Processor tempProc = bk.getBackupProcessor();
+													  long nkl= in.getNoOfInstances();
+													  if(nkl<=nki && bk.upperQ)
+														 {
+															 //		System.out.println("bk   "+bk.getTaskId()+"   prom  time"+bk.getPromotionTime()+"  upper  "+bk.upperQ);
+
+															 bk.upperQ=false;
+															 if((time+1+backup.getGamma()+bk.getRomainingTimeCost())>bk.getAbsoluteDeadline())
+																 break;
+															 else
+															 {
+																 bk.setPromotionTime(time+backup.getGamma());
+																 promotionTimes.add(bk.getPromotionTime());
+																 //				  System.out.println("setting  bk   "+bk.getTaskId()+"   prom  time"+bk.getPromotionTime()+"  primary  "+bk.isPrimary());
+
+																 //remove bk from ready queue to backupqueue
+
+																 //			 System.out.println("tempProc "+tempProc.getId()+"   backupJobQueue size "+tempProc.backupJobQueue.size()+"   readyQueue  "+ tempProc.readyQueue.size());
+
+																 tempProc.backupJobQueue.addJob(bk);
+																 tempProc.readyQueue.remove(bk);
+															 }
+															 //		 System.out.println("tempProc "+tempProc.getId()+"   backupJobQueue size "+tempProc.backupJobQueue.size()+"   readyQueue  "+ tempProc.readyQueue.size());
+
+															 //	  //System.out.println("setting  bk   "+bk.getTaskId()+"   prom  time"+bk.getPromotionTime());
+														 }
+														 else if(nkl<=nki && !bk.upperQ)	
+														 {
+															 if((bk.getPromotionTime()+backup.getGamma()+bk.getRomainingTimeCost())>bk.getAbsoluteDeadline())
+																 break;
+															 //			  //System.out.println("bk   "+bk.getTaskId()+"   prom  time"+bk.getPromotionTime());
+															 else
+															 {
+															 boolean rem ;
+															 rem=    tempProc.backupJobQueue.removeR(bk);
+																if(!rem)
+																{
+														
+																	System.out.println("1622  remove "+rem);
+																		/*				  System.out.println("in removing time   "+time+"   task  "+spar.getTaskId()+"   job   "+spar.getJobId()+ "  deadline  "+spar.getAbsoluteDeadline()
+											      		        	    +" spare success   "+spar.isCompletionSuccess()+"  faulty  "+spar.isFaulty() +"  size "+spareQueue.size());
+																		 */				
+																		Iterator<Job> spareitrtemp = tempProc.backupJobQueue.iterator();
+																	
+																		 while(spareitrtemp.hasNext())
+																		 {
+																			 Job  temps = spareitrtemp.next();
+																		
+																			 if(temps==bk)
+																			 {
+																				  spareitrtemp.remove();
+																		
+																				  break;
+																			 }
+																			 			
+																			 }
+																																
+																}
+
+															 bk.setPromotionTime(bk.getPromotionTime()+backup.getGamma());
+															 tempProc.backupJobQueue.addJob(bk);
+															 //			  //System.out.println("setting  bk   "+bk.getTaskId()+"   prom  time"+bk.getPromotionTime());
+															 //
+														 }
+														 }
+
+
+
+												  }
+											  }
+										  }
+										  // SET INSTANCE FOR BACKUP DELAY end
+
+										  proc.getCurrentJob().getBackupProcessor().readyQueue.remove(backup);
+
+										  if(backup.isPreempted==true)
+											  partialBackupsExecuted++;
+										  else
+											  fullBackupsCancelled++;
+		/*								  writer_schedule.write(" "+fullBackupsExecuted +" "+partialBackupsExecuted +" "+fullBackupsCancelled+" "
+												  + cancelledPrimariesFull +" "+  cancelledPrimariesPartial +" "+ fullPrimariesExecuted +" "+noOfFaults);
+		*/								  /*//System.out.println("time   "+time+"   fullPrimariesExecuted  "+fullPrimariesExecuted+
+     		    			"  proc.getCurrentJob().getEndTime()  "+proc.getCurrentJob().getEndTime());
+										   */	break;
+									 }
+								 }
+							 }
+							 //delete the backup job if running
+					//		 //System.out.println(" //delete the backup job if running");
+							 Job onPrimary, onBackup;
+							 onPrimary = proc.getCurrentJob();
+							 onBackup=onPrimary.getBackupProcessor().getCurrentJob();
+							 if(!onBackup.isCompletionSuccess() && onBackup.getTaskId()==onPrimary.getTaskId()
+									 && onBackup.getJobId()==onPrimary.getJobId())
+							 {
+
+								 partialBackupsExecuted++;
+
+
+								  //System.out.println("//at end time of any job  //delete the backup job if running");
+								 onPrimary.getBackupProcessor().setBusy(false);
+								 onBackup.setCompletionSuccess(true);
+
+
+								 if ( onBackup.backupExecuted)
+								 {
+									 if(!onBackup.isPreempted)
+									 onBackup.setSpareexecutedTime(time-onBackup.getStartTime()); //+1
+									 else // if multiple preemptions
+									 {
+										 if (onBackup.validStartTime)
+											 onBackup.setSpareexecutedTime((time-onBackup.getStartTime()));
+											 
+									 }
+									 // for single preemption backup.setSpareexecutedTime has already 
+									 //done during preemption
+							 }
+								 else
+									 onBackup.setSpareexecutedTime(0);
+
+							
+								 if(!onBackup.isPreempted)
+									 onBackup.setGamma(onBackup.getRomainingTimeCost()-onBackup.getSpareexecutedTime());
+								 else
+								 { 
+									 if(onBackup.validStartTime)
+										 onBackup.setGamma(onBackup.getRomainingTimeCost()-onBackup.getSpareexecutedTime());
+									 else
+										 onBackup.setGamma(onBackup.getRomainingTimeCost());
+									 // for single preemption backup.setSpareexecutedTime has already 
+									 //done during preemption
+								 }
+							/*	 if(onBackup.getGamma()<0 )
+								 {
+									 System.out.println("1876 spareEndTime CurrentJob  "+ onBackup.getTaskId()+"   executed   "+ onBackup.getSpareexecutedTime()+
+										 "   gamma   "+onBackup.getGamma()+ " TIME "+time);
+								 System.out.println("onBackup.getStartTime() "+onBackup.getStartTime()+
+										 " onBackup.getRomainingTimeCost() "+onBackup.getRomainingTimeCost() +
+										 " onBackup.getSpareexecutedTime() "+onBackup.getSpareexecutedTime());
+								 }
+*/
+								 // SET INSTANCE FOR BACKUP DELAY
+								 // create taskset(i,j) section 5.1
+								 ArrayList<Job> backupQueue_BKL = new ArrayList<Job>();
+								 Iterator<Job> backitre = onPrimary.getBackupProcessor().backupJobQueue.iterator();
+								 while(backitre.hasNext())
+								 {
+									 Job job_bkl = backitre.next();
+									 if(job_bkl==onBackup)
+										 continue;
+									 if((time)>= onBackup.getPromotionTime()  && (time) >= job_bkl.getPromotionTime())
+									 {
+										 backupQueue_BKL.add(job_bkl);
+										 		//System.out.println("time if running backupJobQueue "+time+"  condition 1 task  "+job_bkl.getTaskId()+"  p time "+job_bkl.getPromotionTime());
+									 }
+									 if((time)<onBackup.getPromotionTime() && job_bkl.getPromotionTime()<=onBackup.getPromotionTime())
+									 {
+										 backupQueue_BKL.add(job_bkl);
+										 		//System.out.println("time  if running backupJobQueue"+time+" condition 2   task  "+job_bkl.getTaskId()+"  p time "+job_bkl.getPromotionTime());
+
+									 }
+
+								 }
+								 Iterator<Job> backitree = onPrimary.getBackupProcessor().readyQueue.iterator();
+								 while(backitree.hasNext())
+								 {
+									 Job job_bkl = backitree.next();
+									 if(job_bkl.isPrimary())
+										 continue;
+									 if((time)>= onBackup.getPromotionTime()  && (time) >= job_bkl.getPromotionTime())
+									 {
+										 backupQueue_BKL.add(job_bkl);
+										 		//System.out.println("time ready queue "+time+"  condition 1 task  "+job_bkl.getTaskId()+"  p time "+job_bkl.getPromotionTime());
+									 }
+									 if((time)<onBackup.getPromotionTime() && job_bkl.getPromotionTime()<=onBackup.getPromotionTime())
+									 {
+										 backupQueue_BKL.add(job_bkl);
+										 	//System.out.println("time if running ready queue "+time+" condition 2   task  "+job_bkl.getTaskId()+"  p time "+job_bkl.getPromotionTime());
+
+									 }
+
+								 }
+
+								 Iterator<Job> spareitre = backupQueue_BKL.iterator();
+
+								 while(spareitre.hasNext())
+								 {
+									 Job  bk = spareitre.next();
+									 		//System.out.println(" if running backupQueue_BKL  task bk  "+bk.getTaskId()+" job  "+bk.getJobId()+
+									 	//			"  is primary  "+bk.isPrimary()+"  proc  "+bk.getProc().getId());
+									 for (Instance in: bk.getCurrentNoOfInstance())
+									 {
+										 		//System.out.println("hp i  "+in.getHighPriorTask()+" lp k "+in.getLowPriorTask()+"  n i k "+in.getNoOfInstances());
+										 if(in.getHighPriorTask()==onBackup.getTaskId() )
+										 {
+
+											 in.setNoOfInstances(in.getNoOfInstances()+1);
+													//System.out.println("set hp i  "+in.getHighPriorTask()+" lp k "+in.getLowPriorTask()+" [ n i k] "+in.getNoOfInstances());
+
+											 long nki=1;
+											 //System.out.println(" nota size "+bk.getNoInstance().size());
+											 for(Instance ink : bk.getNoInstance())
+											 {
+													//System.out.println(" if running backupQueue_BKL nota task bk  "+bk.getTaskId()+" job"+bk.getJobId());
+
+												 if(ink.getHighPriorTask()== onBackup.getTaskId())
+												 {
+													 nki=ink.getNoOfInstances();
+													 //System.out.println("if running backupQueue_BKL  nota hp i  "+ink.getHighPriorTask()+" lp k "+ink.getLowPriorTask()+" [ n i k ]"+ink.getNoOfInstances());
+
+												 }
+											 }
+
+											 Processor tempProc = bk.getBackupProcessor();
+											  long nkl= in.getNoOfInstances();
+											  if(nkl<=nki && bk.upperQ)
+												 {
+													 //		System.out.println("bk   "+bk.getTaskId()+"   prom  time"+bk.getPromotionTime()+"  upper  "+bk.upperQ);
+
+													 bk.upperQ=false;
+													 if((time+1+onBackup.getGamma()+bk.getRomainingTimeCost())>bk.getAbsoluteDeadline())
+														 break;
+													 else
+													 {
+														 bk.setPromotionTime(time+onBackup.getGamma());
+														 promotionTimes.add(bk.getPromotionTime());
+														 //				  System.out.println("setting  bk   "+bk.getTaskId()+"   prom  time"+bk.getPromotionTime()+"  primary  "+bk.isPrimary());
+
+														 //remove bk from ready queue to backupqueue
+
+														 //			 System.out.println("tempProc "+tempProc.getId()+"   backupJobQueue size "+tempProc.backupJobQueue.size()+"   readyQueue  "+ tempProc.readyQueue.size());
+
+														 tempProc.backupJobQueue.addJob(bk);
+														 tempProc.readyQueue.remove(bk);
+													 }
+													 //		 System.out.println("tempProc "+tempProc.getId()+"   backupJobQueue size "+tempProc.backupJobQueue.size()+"   readyQueue  "+ tempProc.readyQueue.size());
+
+													 //	  //System.out.println("setting  bk   "+bk.getTaskId()+"   prom  time"+bk.getPromotionTime());
+												 }
+												 else if(nkl<=nki && !bk.upperQ)	
+												 {
+													 if((bk.getPromotionTime()+onBackup.getGamma()+bk.getRomainingTimeCost())>bk.getAbsoluteDeadline())
+														 break;
+													 //			  //System.out.println("bk   "+bk.getTaskId()+"   prom  time"+bk.getPromotionTime());
+													 else
+													 {
+													 boolean rem ;
+													 rem=    tempProc.backupJobQueue.removeR(bk);
+														if(!rem)
+														{
+															 System.out.println("1807  remove "+rem);
+																/*				  System.out.println("in removing time   "+time+"   task  "+spar.getTaskId()+"   job   "+spar.getJobId()+ "  deadline  "+spar.getAbsoluteDeadline()
+									      		        	    +" spare success   "+spar.isCompletionSuccess()+"  faulty  "+spar.isFaulty() +"  size "+spareQueue.size());
+																 */				
+																Iterator<Job> spareitrtemp = tempProc.backupJobQueue.iterator();
+															
+																 while(spareitrtemp.hasNext())
+																 {
+																	 Job  temps = spareitrtemp.next();
+																
+																	 if(temps==bk)
+																	 {
+																		  spareitrtemp.remove();
+																
+																		  break;
+																	 }
+																	 			
+																	 }
+																														
+														}
+
+													 bk.setPromotionTime(bk.getPromotionTime()+onBackup.getGamma());
+													 tempProc.backupJobQueue.addJob(bk);
+													 //			  //System.out.println("setting  bk   "+bk.getTaskId()+"   prom  time"+bk.getPromotionTime());
+													 //
+												 }
+												 }
+
+
+										 }
+									 }
+								 }
+								 // SET INSTANCE FOR BACKUP DELAY end
+
+
+
+								 onPrimary.getBackupProcessor().setProc_state(ProcessorState.IDLE);
+
+								 onPrimary.getBackupProcessor().setActiveEnergy(energyConsumed.energyActive
+										 (((time-onBackup.getStartTime())+1), 
+												 onBackup.getFrequency()));
+								 
+									//System.out.println("in running TIME  "+time+" getBackupProcessor  "+onPrimary.getBackupProcessor().getId()+" active  "+ onPrimary.getBackupProcessor().activeTime+"  energy  "+onPrimary.getBackupProcessor().getActiveEnergy());
+
+								 //			proc.setActiveEnergy(energyConsumed.energyActive((time-onBackup.getStartTime()), onBackup.getFrequency()));
+					/*			 writer_schedule.write("\n//deletethebackup"+proc.getCurrentJob().getBackupProcessor().getId()+
+										 " "+onBackup.getTaskId()+" "+onBackup.getJobId()+" "+
+										 onBackup.isPrimary()+" "+Double.valueOf(twoDecimals.format(	onBackup.getFrequency()))
+										 +" "+	onBackup.getRomainingTimeCost()+" "+onBackup.getDeadline()
+										 +" "+	onBackup.isPreempted+" "+onBackup.getStartTime());
+								 writer_schedule.write(" "+(time+1)+" "+proc.getCurrentJob().isFaulty());
+								 writer_schedule.write(" "+fullBackupsExecuted +" "+partialBackupsExecuted +" "+fullBackupsCancelled+" "
+										 + cancelledPrimariesFull +" "+  cancelledPrimariesPartial +" "+ fullPrimariesExecuted +" "+noOfFaults);
+*/
+							 }
+
+						 }  // end if(proc.getCurrentJob().isPrimary())
+						 else if (!proc.getCurrentJob().isPrimary()) //backup has completed
+						 {
+							 // delete the primary job if not started
+							 // //System.out.println("delete the primary job if not started");
+							 Iterator<Job> itr_primary = proc.getCurrentJob().getPrimaryProcessor().readyQueue.iterator();
+							 while(itr_primary.hasNext())
+							 {
+								 Job primaryTask = itr_primary.next();
+								 if(primaryTask.getTaskId()==proc.getCurrentJob().getTaskId() && primaryTask.getJobId()==proc.getCurrentJob().getJobId())
+								 {
+									 // //System.out.println(" time  "+time+"   p  "+proc.getId()+ "  primary p  " +proc.getCurrentJob().getPrimaryProcessor().getId()+
+									 //					"  delete task  "+	primaryTask.getTaskId() +"  job  "+ primaryTask.getJobId());
+									 primaryTask.setCompletionSuccess(true);
+									 if(primaryTask.isPreempted==true)
+										 cancelledPrimariesPartial++;
+									 else
+										 cancelledPrimariesFull++;
+									 proc.getCurrentJob().getPrimaryProcessor().readyQueue.remove(primaryTask);
+
+
+									 break;
+								 }
+							 }
+
+							 //delete the primary job if running
+							 // //System.out.println("delete the primary job if running");
+							 Job onPrimary, onBackup;
+							 onBackup = proc.getCurrentJob();
+							 onPrimary=onBackup.getPrimaryProcessor().getCurrentJob();
+							 if(!onPrimary.isCompletionSuccess() && onBackup.getTaskId()==onPrimary.getTaskId() && onBackup.getJobId()==onPrimary.getJobId())
+							 {
+
+								 cancelledPrimariesPartial++;
+								 onBackup.getPrimaryProcessor().setProc_state(ProcessorState.IDLE);
+
+								 onBackup.getPrimaryProcessor().setActiveEnergy(energyConsumed.energyActive
+										 (((time-onPrimary.getStartTime())+1), onPrimary.getFrequency()));
+								 onBackup.getPrimaryProcessor().setBusy(false);
+								 //	 onPrimary.getPrimaryProcessor().setBusy(false);
+								 onPrimary.setCompletionSuccess(true);
+								 //		proc.setActiveEnergy(energyConsumed.energyActive((time-onPrimary.getStartTime()), onPrimary.getFrequency()));
+			/*					 writer_schedule.write("\ndeletetheprimary"+onBackup.getPrimaryProcessor().getId()+" "+onPrimary.getTaskId()+" "+onPrimary.getJobId()+" "+
+										 onPrimary.isPrimary()+" "+Double.valueOf(twoDecimals.format(	onPrimary.getFrequency()))
+										 +" "+	onPrimary.getRemainingTime()+" "+	onPrimary.getDeadline()
+										 +" "+	onPrimary.isPreempted+" "+onPrimary.getStartTime()+" ");
+								 writer_schedule.write(""+(time+1)+" "+proc.getCurrentJob().isFaulty());
+								 writer_schedule.write(" "+fullBackupsExecuted +" "+partialBackupsExecuted +" "+fullBackupsCancelled+" "
+										 + cancelledPrimariesFull +" "+  cancelledPrimariesPartial +" "+ fullPrimariesExecuted +" "+noOfFaults);
+*/
+							 }
+						 }
+						 //	//System.out.println("p  "+proc.getId());
+						 proc.setNextActivationTime(time);
+						 proc.setTimeToNextArrival( proc.getNextActivationTime()-time-1);
+					}
+				}
+
+
+
+				time++;
+				if (deadlineMissed)
+					break;
+
+			}
+			for (Processor proc : freeProcList)
+			{
+				proc.setIdleEnergy(energyConsumed.energy_IDLE(proc.idleTime));
+				proc.setSleepEnergy(energyConsumed.energySLEEP(proc.sleepTime));
+				proc.setEnergy_consumed(proc.getActiveEnergy()+proc.getIdleEnergy()+proc.getSleepEnergy());
+						//System.out.println("out TIME  "+time+"  p  "+proc.getId()+" active  "+ proc.activeTime+"  energy  "+proc.getActiveEnergy());
+
+    			//System.out.println("TIME  "+time+"  p  "+proc.getId()+"  idle "+ proc.idleTime+" energy  "+proc.getIdleEnergy());
+
+    			//System.out.println("TIME  "+time+"  p  "+proc.getId()+" sleep  "+proc.sleepTime +"   energy   "+proc.getSleepEnergy());
+            	//System.out.println("total energy  "+proc.getEnergy_consumed());
+				 
+				energyTotal+= proc.getEnergy_consumed();
+			}
+			/* for(Processor p : freeProcList)
+        {
+        writer_taskProcWise.write("\n "+p.getId()+" "+p.getNoOfPriJobs()+" "+p.getNoOfBackJobs()+
+        		" "+(p.getNoOfPriJobs()+p.getNoOfBackJobs()));
+        }*/
+			writer_tasks.write("\n"+fullBackupsExecuted +" "+partialBackupsExecuted +" "+fullBackupsCancelled+" "
+					+ cancelledPrimariesFull +" "+  cancelledPrimariesPartial +" "+ fullPrimariesExecuted +" "+totalPrimaries+" " +noOfFaults);
+
+			 writer_energy.write("\n"+total_no_tasksets++ + " "+Double.valueOf(twoDecimals.format(U_SUM))
+		        +" "+ Double.valueOf(twoDecimals.format(minfq))+" "+ Double.valueOf(twoDecimals.format(maxfq))+" "+
+				" "+Double.valueOf(twoDecimals.format(energyTotal)));
+		      /*  for(Processor p : freeProcList)
+		        {
+		        	 writer_energy.write(" " +p.activeTime+" "+p.idleTime+" "+p.sleepTime);
+		        }*/
+			System.out.println("MixedAllocation_BACKUP_DELAYING  fq    "+maxfq +"  tasksets  "+total_no_tasksets+" energy  "+energyTotal);
+
+			if (deadlineMissed)
+				break;
+
+			/* if(total_no_tasksets>500)
+    	   break;*/
+		}
+
+	//	writer_allocation.close();
+	//	writer_schedule.close();
+		writer_energy.close();
+		writer_tasks.close();
+		writer_fault.close();
+		//   writer_analysis.close();
+		//  writer_taskProcWise.close();
+		System.out.println("finish MixedAllocation_BACKUP_DELAYING");
+	}
+
+	public static void prioritize(ArrayList<ITask> taskset)
+	{
+		int priority =1;
+
+		for(ITask t : taskset)
+		{
+			t.setPriority(priority++);
+
+		}
+
+		//		return taskset;
+
+	}
+
+}
+
+
