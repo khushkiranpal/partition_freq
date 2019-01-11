@@ -25,7 +25,7 @@ public class TestMixed {
 	public static final int d =4;  // FAULT TOLERANCE PARAMETER
 	public static final long hyper =100000;
 	private double freq=1; // TEMP PARAMETER
-	public static final int proc =32; 
+	public static final int proc =16; 
 	
 	/**
 	 * @param args
@@ -35,7 +35,7 @@ public class TestMixed {
 		// TODO Auto-generated method stub
 		//TEST   TEST/";//
 		String filename= "TEST";//"TESTfault";//testhaque
-		String partitioning= "WFD_THRES";//"WFD" "WFD_THRES" "M_WFD" "PRIORITY" /////"PRIORITY_THRES"
+		String partitioning= "PRIORITY_THRES";//"WFD" "WFD_THRES" "M_WFD" "PRIORITY" /////"PRIORITY_THRES"
 		String inputFolder = "D:/CODING/ENERGY_RMS_DPM11-12-18/MULTI 17-12-18/TASKSET/0.1/";
 		String outputFolder= "D:/CODING/ENERGY_RMS_DPM11-12-18/MULTI 17-12-18/TEST/";//OUTPUT/32 proc/0.1/"+partitioning;//11-12-18+hyper+"_"+proc ;     //MIXED OVERLOADING/14-2-18/DUAL PROCESSOR/
 		String inputfilename=  filename+".txt";

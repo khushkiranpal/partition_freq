@@ -202,7 +202,7 @@ public class MixedConstantBackFreq_fq___06_12_19 {
 			Partitioning partition  = new Partitioning();
 		//	String partitioning= "M_WFD";
 			double threshold  = (SystemMetric.utilisation(taskset)/(m*0.7));
-		//	System.out.println("threshold  "+threshold );
+			System.out.println("threshold  "+threshold );
 
 			switch (partitioning) { 
 	        case "WFD": 
@@ -214,9 +214,9 @@ public class MixedConstantBackFreq_fq___06_12_19 {
 	        case "M_WFD": 
 	        	partition.allocation_M_WFD(taskset, freeProcList, filename);
 	            break; 
-	        case "PRIORITY": 
+	     /*   case "PRIORITY": 
 	        	partition.allocation_Prioritywise(taskset, freeProcList, filename);
-	            break; 
+	            break; */
 	        case "PRIORITY_THRES": 
 	        	partition.alloc_Prioritywise_threshold(taskset, freeProcList, filename,threshold); 
 	            break; 

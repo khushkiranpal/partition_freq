@@ -220,9 +220,9 @@ public class MixedNonUniformFeasibleFreq {
 	        case "M_WFD": 
 	        	partition.allocation_M_WFD(taskset, freeProcList, filename);
 	            break; 
-	        case "PRIORITY": 
+	       /* case "PRIORITY": 
 	        	partition.allocation_Prioritywise(taskset, freeProcList, filename);
-	            break; 
+	            break; */
 	        case "PRIORITY_THRES": 
 	        	partition.alloc_Prioritywise_threshold(taskset, freeProcList, filename,threshold); 
 	            break; 
