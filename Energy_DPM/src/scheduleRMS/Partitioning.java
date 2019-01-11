@@ -1307,7 +1307,7 @@ public class Partitioning { //initialization parameters//
 					RMS_max_work=Math.min(threshold*2, 0.7),min_work=0.7;//0.7;
 			ITask backup_task;
 			Processor minP=null, nextP=null;
-			System.out.println("t  "+t.getId()+" period "+t.getPeriod()+" u backup  "+u);
+			System.out.println("B   t  "+t.getId()+" period "+t.getPeriod()+" u backup  "+u+"  currentProcId  "+currentProcId);
 			if (!reverse) {
 				for (Processor pMin : freeProcList) {
 
@@ -1316,7 +1316,7 @@ public class Partitioning { //initialization parameters//
 					/*if (currentProcId > pMin.getId())
 							continue;*/
 					System.out.println("B work   " + pMin.getWorkload() + "  pMin  " + pMin.getId() + " t.getP() "
-							+ t.getP().getId());
+							+ t.getP().getId()+"  currentProcId  "+currentProcId);
 
 					if (pMin.opened) {
 						//	min_work=Double.valueOf(twoDecimals.format(pMin.getWorkload()));
@@ -1324,6 +1324,9 @@ public class Partitioning { //initialization parameters//
 						//11-1-19
 						if ((minP.getWorkload() + u) > 0.7) {
 							currentProcId++;
+							System.out.println("OPENED work   " + pMin.getWorkload() + "  pMin  " + pMin.getId() + " t.getP() "
+									+ t.getP().getId()+"  currentProcId  "+currentProcId);
+
 							continue;
 						}
 						if (RMS_max_work < (pMin.getWorkload() + u))
@@ -1334,19 +1337,20 @@ public class Partitioning { //initialization parameters//
 
 					if (!pMin.opened) {
 						nextP = pMin;
-						//		System.out.println("breaking "+pMin.opened);
+						
+							System.out.println("breaking "+pMin.opened + "  nextP.getId()  " +nextP.getId()+ "  minP.getId()  " +minP.getId());
 
 						break;
 					}
 
 				}
-				if (minP == null)/*|| (minP.getWorkload())>0.7)
+				if (minP == null || (minP.getWorkload()+u)>0.7)/*
 									&& minP.getWorkload() != 0)*/// open new bin
 				{
 					if (nextP != null) {
 						nextP.opened = true;
 						minP = nextP;
-						currentProcId++;
+						//currentProcId++;
 						System.out.println("work   " + minP.getWorkload() + "  nextP alloted  " + nextP.getId());
 					}
 					if (nextP == null) {
@@ -1363,13 +1367,16 @@ public class Partitioning { //initialization parameters//
 			if(reverse)
 			{
 				System.out.println("freeProcList.size()   "+freeProcList.size());
-
+				do
+				{
 				minP=freeProcList.get((int)reverse_count--);
+				
+				}while ((minP.getWorkload()+u)>0.7);
 				System.out.println("min reverse  "+minP.getId());
 
 			}
 			
-			System.out.println(" B minP  "+minP.getId()+" t "+t.getId()+ 
+			System.out.println(" B minP  "+minP.getId()+" t "+t.getId()+"  currentProcId  "+currentProcId+ 
 					" wcet "+t.getWcet()+"  load  "+minP.getWorkload());
 
 			t.setBackupProcessor(minP);
