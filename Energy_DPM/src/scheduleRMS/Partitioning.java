@@ -247,11 +247,12 @@ public class Partitioning { //initialization parameters//
 	////CLONING backup_task = t.cloneTask_MWFD_RMS_EEPS();/////////////////
 	/////RMS_max_work=1//////////////
 
-	public  void allocatio_WFD (ArrayList<ITask> taskset,   ArrayList<Processor> freeProcList ,  String filename, double RMSMax_work) throws IOException
+	public  int allocatio_WFD (ArrayList<ITask> taskset,   ArrayList<Processor> freeProcList ,  String filename, double RMSMax_work) throws IOException
 	{
+		int counter=0;
 		Writer writer_allocation = new FileWriter(filename+"WFD.txt");
 		DecimalFormat twoDecimals = new DecimalFormat("#.##");  // upto 1 decimal points
-		DecimalFormat fourDecimals = new DecimalFormat("#.###");
+		DecimalFormat fourDecimals = new DecimalFormat("#.####");
 		SchedulabilityCheck schedule = new SchedulabilityCheck();
 		double fq=1;
 
@@ -263,8 +264,8 @@ public class Partitioning { //initialization parameters//
 				//	//System.out.println("t1 "+p1.getId()+"  u1 "+Double.valueOf(fourDecimals.format(((double)p1.getWcet()/(double)p1.getDeadline()))));
 				//	//System.out.println("t2 "+p2.getId()+"  u2 "+Double.valueOf(fourDecimals.format(((double)p2.getWcet()/(double)p2.getDeadline()))));
 
-				double temp =  ( (Double.valueOf(twoDecimals.format(((double)p2.getWcet()/(double)p2.getDeadline()))))
-						-(Double.valueOf(twoDecimals.format(((double)p1.getWcet()/(double)p1.getDeadline()))))); // backup????? wcet uti??
+				double temp =  ( (Double.valueOf(fourDecimals.format(((double)p2.getWcet()/(double)p2.getDeadline()))))
+						-(Double.valueOf(fourDecimals.format(((double)p1.getWcet()/(double)p1.getDeadline()))))); // backup????? wcet uti??
 				//	//System.out.println("temp   "+temp);
 				if(temp>0)
 					cmp = 1;
@@ -306,17 +307,17 @@ public class Partitioning { //initialization parameters//
 		freeProcList.get(0).opened=true;
 		for(ITask t : taskset)
 		{
-			double u = Double.valueOf(twoDecimals.format(((double)t.getWcet()/(double)t.getDeadline()))),
+			double u = Double.valueOf(fourDecimals.format(((double)t.getWcet()/(double)t.getDeadline()))),
 					RMS_max_work=RMSMax_work, min_work=RMS_max_work;//0.7	;
 			Processor minP=null, nextP=null;
 			//System.out.println(" u  "+u);
 
 			for(Processor pMin : freeProcList)
 			{
-
+				counter++;
 				if(min_work >(pMin.getWorkload() )&& pMin.opened)
 				{
-					min_work=Double.valueOf(twoDecimals.format(pMin.getWorkload()));
+					min_work=Double.valueOf(fourDecimals.format(pMin.getWorkload()));
 					minP = pMin;
 					//	System.out.println("work   "+min_work+"  minP  "+minP.getId()+ "  pMin  "+pMin.getId());
 
@@ -370,8 +371,8 @@ public class Partitioning { //initialization parameters//
 				//	//System.out.println("t1 "+p1.getId()+"  u1 "+Double.valueOf(fourDecimals.format(((double)p1.getWcet()/(double)p1.getDeadline()))));
 				//	//System.out.println("t2 "+p2.getId()+"  u2 "+Double.valueOf(fourDecimals.format(((double)p2.getWcet()/(double)p2.getDeadline()))));
 
-				double temp =  ( (Double.valueOf(twoDecimals.format(((double)p2.getWCET_orginal()/(double)p2.getDeadline()))))
-						-(Double.valueOf(twoDecimals.format(((double)p1.getWCET_orginal()/(double)p1.getDeadline()))))); // backup????? wcet uti??
+				double temp =  ( (Double.valueOf(fourDecimals.format(((double)p2.getWCET_orginal()/(double)p2.getDeadline()))))
+						-(Double.valueOf(fourDecimals.format(((double)p1.getWCET_orginal()/(double)p1.getDeadline()))))); // backup????? wcet uti??
 				//	//System.out.println("temp   "+temp);
 				if(temp>0)
 					cmp = 1;
@@ -390,7 +391,7 @@ public class Partitioning { //initialization parameters//
 
 		for(ITask t : taskset)
 		{
-			double u = Double.valueOf(twoDecimals.format(((double)t.getWCET_orginal()/(double)t.getD()))),
+			double u = Double.valueOf(fourDecimals.format(((double)t.getWCET_orginal()/(double)t.getD()))),
 					RMS_max_work=0.7,//RMSMax_work18-12-18
 					min_work=RMS_max_work;//0.7;
 			ITask backup_task;
@@ -398,12 +399,13 @@ public class Partitioning { //initialization parameters//
 			//	System.out.println("t  "+t.getId()+" u backup  "+u);
 			for(Processor pMin : freeProcList)
 			{
+				counter++;
 				if (pMin == t.getP())   // IF PRIMARY PROCESSOR CONTAINS THE TASK, ALLOCATE BACKUP ON SOME OTHER PROCESSOR
 					continue;
 
 				if(min_work >(pMin.getWorkload() )&& pMin.opened)
 				{
-					min_work=Double.valueOf(twoDecimals.format(pMin.getWorkload()));
+					min_work=Double.valueOf(fourDecimals.format(pMin.getWorkload()));
 					minP = pMin;
 					//		System.out.println("B work   "+min_work+"  minP  "+minP.getId()+ "  pMin  "+pMin.getId());
 
@@ -424,8 +426,9 @@ public class Partitioning { //initialization parameters//
 				//	System.out.println("work   "+minP.getWorkload()+ "  nextP  "+nextP.getId());
 
 			}
-
-			t.setBackupProcessor(minP);
+			/*System.out.println("  minP  "+minP.getId()+" t "+t.getId()+ 
+					" wcet "+t.getWcet()+"  load  "+minP.getWorkload());
+		*/	t.setBackupProcessor(minP);
 			backup_task = t.cloneTask_MWFD_RMS_EEPS();
 			backup_task.setPrimary(false);  //setup backup processor
 			backup_task.setFrequency(1);
@@ -444,18 +447,18 @@ public class Partitioning { //initialization parameters//
 
 		}
 
-		for(Processor pMin : freeProcList)
+	/*	for(Processor pMin : freeProcList)
 		{
 
 			writer_allocation.write("\nprocessor   "+pMin.getId()+"\t frequency   "+fq
 					+ " schedulability "+schedule.worstCaseResp_TDA_RMS_multi(pMin.taskset)+"\n");
 
-		}
+		}*/
 		writer_allocation.write("\nProc workload TASK U WCET PERIOD freq IS_PRIMARY BACKUP_PR PRIMARY_PR\n");
 
 		for(Processor pMin : freeProcList)
 		{
-			writer_allocation.write("\n\nprocessor   "+pMin.getId()+"\t frequency   "+fq+"\n");
+			//writer_allocation.write("\n\nprocessor   "+pMin.getId()+"\t frequency   "+fq+"\n");
 			for(ITask t : pMin.taskset)
 
 			{
@@ -471,12 +474,250 @@ public class Partitioning { //initialization parameters//
 			}
 		}
 		writer_allocation.close();
+		System.out.println("counter  "+counter);
+		return counter;
 	}
 
-
-	public void allocation_WFD_fixedThresh(ArrayList<ITask> taskset,   ArrayList<Processor> freeProcList ,  String filename, double threshold) throws IOException
+	public void allocation_WFD_fixedThresh_unbalanced(ArrayList<ITask> taskset,   ArrayList<Processor> freeProcList ,  String filename, double threshold) throws IOException
 	{
 
+		Writer writer_allocation = new FileWriter(filename+"WFD_threshold_unbalanced.txt");
+		DecimalFormat twoDecimals = new DecimalFormat("#.##");  // upto 1 decimal points
+		DecimalFormat fourDecimals = new DecimalFormat("#.###");
+		SchedulabilityCheck schedule = new SchedulabilityCheck();
+		double fq=1;
+
+		// SORT IN DECREASING ORDER OF UTILIZATION FOR WFD wcet according to frequency
+
+		Comparator<ITask> c = new Comparator<ITask>() {
+			public int compare(ITask p1, ITask p2) {
+				int cmp;
+				//	//System.out.println("t1 "+p1.getId()+"  u1 "+Double.valueOf(fourDecimals.format(((double)p1.getWcet()/(double)p1.getDeadline()))));
+				//	//System.out.println("t2 "+p2.getId()+"  u2 "+Double.valueOf(fourDecimals.format(((double)p2.getWcet()/(double)p2.getDeadline()))));
+
+				double temp =  ( (Double.valueOf(fourDecimals.format(((double)p2.getWcet()/(double)p2.getDeadline()))))
+						-(Double.valueOf(fourDecimals.format(((double)p1.getWcet()/(double)p1.getDeadline()))))); // backup????? wcet uti??
+				//	//System.out.println("temp   "+temp);
+				if(temp>0)
+					cmp = 1;
+				else
+					cmp=-1;
+				if(temp==0)
+					cmp=0;
+				//	//System.out.println(" cmp  "+cmp);
+				if (cmp==0)														
+					cmp= (int)(p1.getId()-p2.getId());	
+				//	//System.out.println(" cmp  "+cmp);
+				return cmp;
+			}
+		};
+		taskset.sort(c);
+
+		/*for(ITask t : taskset)
+	    	{
+			System.out.println("task  "+t.getId()+" u "+ (Double.valueOf(twoDecimals.format(((double)t.getWcet()/(double)t.getDeadline())))) );
+	    	}*/
+
+		// WHILE ALL PROCESSORS HAVE SCHEDULABLE TASKSETS ON GIVEN FREQUENCIES 
+		//	do{      
+
+		for(Processor pMin : freeProcList)
+		{
+
+			pMin.taskset.clear();
+			pMin.setWorkload(0);
+			//	//System.out.println("processor   "+pMin.getId()+"   size  "+pMin.taskset.size()+"  w  "+pMin.getWorkload());
+		}    		
+
+
+
+		//ALLOCATION OF PRIMARIES/////RMS_max_work=1//////////////
+
+		writer_allocation.write("\nPRIMARY WFD_threshold " + threshold);
+		writer_allocation.write("\nProc Workload u_task task WCET period ");
+		freeProcList.get(0).opened=true;
+		for(ITask t : taskset)
+		{
+			double u = Double.valueOf(fourDecimals.format(((double)t.getWcet()/(double)t.getDeadline()))),
+					RMS_max_work=threshold, min_work=threshold;//0.7	;
+			Processor minP=null, nextP=null;
+		//	System.out.println(" u  "+u+"  t  "+ t.getId()+ "  threshold  "+threshold );
+
+			for(Processor pMin : freeProcList)
+			{
+			//	System.out.println("OUT work   "+min_work+"  pMin  "+pMin.getId()+ "  WORKLOAD  "+pMin.getWorkload()+"  min_work   "+min_work);
+
+				if(min_work >(pMin.getWorkload() )&& pMin.opened)
+				{
+					min_work=Double.valueOf(fourDecimals.format(pMin.getWorkload()));
+					minP = pMin;
+				//	System.out.println("min_work   "+min_work+"  minP  "+minP.getId()+ "  WORKLOAD  "+pMin.getWorkload());
+
+				}
+				if(!pMin.opened)
+				{
+					nextP=pMin;
+					//	System.out.println("breaking "+pMin.opened);
+					break;
+				}
+
+			}
+
+
+			if(minP==null || (minP.getWorkload()+u)>(RMS_max_work/0.7) && minP.getWorkload()!=0)// open new bin
+			{  // && minP.getWorkload()!=0    for threshold < task utilization 05/01/19
+
+				nextP.opened=true;
+				minP=nextP;
+			//	System.out.println("work   "+minP.getWorkload()+ "  nextP  "+nextP.getId());
+			}
+
+		/*	System.out.println("  minP  "+minP.getId()+" t "+t.getId()+
+					" wcet "+t.getWcet()+"  load  "+minP.getWorkload());
+*/
+			t.setPrimary(true);
+			t.setFrequency(fq);
+			minP.taskset.add(t);
+			//18-12-18 problem =total uti   0.7228> LLB_N  0.7205   slack   0.0
+			minP.setWorkload(minP.getWorkload()+u);
+			//	minP.setWorkload(Double.valueOf(twoDecimals.format(minP.getWorkload()+u)));
+			t.setP(minP);
+			t.setPrimaryProcessor(minP);
+	/*		System.out.println(" after minP  "+minP.getId()+" t "+t.getId()+ 
+					" wcet "+t.getWcet()+"  load  "+minP.getWorkload());
+*/			writer_allocation.write("\n"+minP.getId()+" "+minP.getWorkload()+" "+u+" "+t.getId()+" "
+					+t.getWcet()+" "+t.getPeriod());	
+
+		}
+
+		/*for(Processor pMin : freeProcList)
+    		{
+	    		System.out.println("  pMin  "+pMin.getId()+"work   "+pMin.getWorkload());
+
+    		}*/
+
+		
+		
+		//ALLOCATION OF BACKUPS/////RMS_max_work=1//////////////
+		writer_allocation.write("\nBACKUPS ");
+		writer_allocation.write("\nProc Workload u_task task WCET period ");
+
+		// SORT IN DECREASING ORDER OF UTILIZATION FOR MFWD wcet_original
+
+		Comparator<ITask> c1 = new Comparator<ITask>() {
+			public int compare(ITask p1, ITask p2) {
+				int cmp;
+				//	//System.out.println("t1 "+p1.getId()+"  u1 "+Double.valueOf(fourDecimals.format(((double)p1.getWcet()/(double)p1.getDeadline()))));
+				//	//System.out.println("t2 "+p2.getId()+"  u2 "+Double.valueOf(fourDecimals.format(((double)p2.getWcet()/(double)p2.getDeadline()))));
+
+				double temp =  ( (Double.valueOf(fourDecimals.format(((double)p2.getWCET_orginal()/(double)p2.getDeadline()))))
+						-(Double.valueOf(fourDecimals.format(((double)p1.getWCET_orginal()/(double)p1.getDeadline()))))); // backup????? wcet uti??
+				//	//System.out.println("temp   "+temp);
+				if(temp>0)
+					cmp = 1;
+				else
+					cmp=-1;
+				if(temp==0)
+					cmp=0;
+				//	//System.out.println(" cmp  "+cmp);
+				if (cmp==0)														
+					cmp= (int)(p1.getId()-p2.getId());
+				//	//System.out.println(" cmp  "+cmp);
+				return cmp;
+			}
+		};
+		taskset.sort(c1);
+
+		for(ITask t : taskset)
+		{
+			double u = Double.valueOf(fourDecimals.format(((double)t.getWCET_orginal()/(double)t.getD()))),
+					RMS_max_work=0.7,min_work=0.7;//  threshold*2maximum 1 can be used;
+			ITask backup_task;
+			Processor minP=null, nextP=null;
+		//	System.out.println("t  "+t.getId()+" u backup  "+u);
+			for(Processor pMin : freeProcList)
+			{
+
+				if (pMin == t.getP())   // IF PRIMARY PROCESSOR CONTAINS THE TASK, ALLOCATE BACKUP ON SOME OTHER PROCESSOR
+					continue;
+			//	System.out.println("B work   "+pMin.getWorkload()+"  pMin  "+pMin.getId());
+
+				if(min_work >(pMin.getWorkload() )&& pMin.opened)
+				{
+					min_work=Double.valueOf(fourDecimals.format(pMin.getWorkload()));
+					minP = pMin;
+				//	System.out.println("B work   "+minP.getWorkload()+"  minP  "+minP.getId());
+
+				}
+				if(!pMin.opened)
+				{
+
+					nextP=pMin;
+				//	System.out.println("breaking "+pMin.opened);
+
+					break;
+				}
+
+			}
+			if( minP==null || (minP.getWorkload()+u)>(0.7 )&& minP.getWorkload()!=0)// open new bin
+			{
+				nextP.opened=true;
+				minP=nextP;
+			//	System.out.println("work   "+minP.getWorkload()+ "  nextP alloted  "+nextP.getId());
+
+			}
+
+			t.setBackupProcessor(minP);
+			backup_task = t.cloneTask_MWFD_RMS_EEPS();
+			backup_task.setPrimary(false);  //setup backup processor
+			backup_task.setFrequency(1);
+			backup_task.setBackupProcessor(minP);
+			backup_task.setPrimaryProcessor(t.getP());
+
+			minP.taskset.add(backup_task);
+			//18-12-18 problem =total uti   0.7228> LLB_N  0.7205   slack   0.0
+			minP.setWorkload(minP.getWorkload()+u);
+			//	minP.setWorkload(Double.valueOf(twoDecimals.format(minP.getWorkload()+u)));
+			backup_task.setP(minP);
+		/*	System.out.println("  minP  "+minP.getId()+" t "+t.getId()+
+					" wcet "+t.getWcet()+"  load  "+minP.getWorkload());
+	*/		writer_allocation.write("\n"+minP.getId()+" "+minP.getWorkload()+" "+u+" "+t.getId()+" "
+					+t.getWcet()+" "+t.getPeriod());	
+
+		}
+
+	/*	for(Processor pMin : freeProcList)
+		{
+
+			writer_allocation.write("\nprocessor   "+pMin.getId()+"\t frequency   "+fq
+					+ " schedulability "+schedule.worstCaseResp_TDA_RMS_multi(pMin.taskset)+"\n");
+
+		}*/
+		writer_allocation.write("\nProc workload TASK U WCET PERIOD freq IS_PRIMARY BACKUP_PR PRIMARY_PR\n");
+
+		for(Processor pMin : freeProcList)
+		{
+			//writer_allocation.write("\n\nprocessor   "+pMin.getId()+"\t frequency   "+fq+"\n");
+			for(ITask t : pMin.taskset)
+
+			{
+
+				writer_allocation.write(pMin.getId()+" "+pMin.getWorkload()+" "+t.getId()+" "+ Double.valueOf(fourDecimals.format(((double)t.getWcet()/(double)t.getDeadline())))
+				+" "+t.getWCET_orginal()+" "+t.getPeriod()+" "+t.getFrequency()+" "+
+				" "+t.isPrimary()+	" "+t.getBackupProcessor().getId()+" "+t.getPrimaryProcessor().getId()+"\n");
+
+				//	    		System.out.println("task   "+t.getId()+"  u  "+ Double.valueOf(twoDecimals.format(((double)t.getWcet()/(double)t.getDeadline())))
+				//	    			+"   primary  "+t.isPrimary()+"  Proc   "+t.getP().getId()+	"   backup p  "+t.getBackupProcessor().getId()+
+				//	    			"   primary  "+t.getPrimaryProcessor().getId());
+				//	       
+			}
+		}
+		writer_allocation.close();
+
+	}
+	public int allocation_WFD_fixedThresh(ArrayList<ITask> taskset,   ArrayList<Processor> freeProcList ,  String filename, double threshold) throws IOException
+	{
+		int counter=0;
 		Writer writer_allocation = new FileWriter(filename+"WFD_threshold.txt");
 		DecimalFormat twoDecimals = new DecimalFormat("#.##");  // upto 1 decimal points
 		DecimalFormat fourDecimals = new DecimalFormat("#.###");
@@ -537,17 +778,17 @@ public class Partitioning { //initialization parameters//
 			double u = Double.valueOf(fourDecimals.format(((double)t.getWcet()/(double)t.getDeadline()))),
 					RMS_max_work=threshold, min_work=threshold;//0.7	;
 			Processor minP=null, nextP=null;
-			System.out.println(" u  "+u+"  t  "+ t.getId());
+		//	System.out.println(" u  "+u+"  t  "+ t.getId()+ "  threshold  "+threshold );
 
 			for(Processor pMin : freeProcList)
 			{
-				System.out.println("OUT work   "+min_work+"  pMin  "+pMin.getId()+ "  WORKLOAD  "+pMin.getWorkload()+"  min_work   "+min_work);
-
+			//	System.out.println("OUT work   "+min_work+"  pMin  "+pMin.getId()+ "  WORKLOAD  "+pMin.getWorkload()+"  min_work   "+min_work);
+				counter++;
 				if(min_work >(pMin.getWorkload() )&& pMin.opened)
 				{
 					min_work=Double.valueOf(fourDecimals.format(pMin.getWorkload()));
 					minP = pMin;
-					System.out.println("min_work   "+min_work+"  minP  "+minP.getId()+ "  WORKLOAD  "+pMin.getWorkload());
+				//	System.out.println("min_work   "+min_work+"  minP  "+minP.getId()+ "  WORKLOAD  "+pMin.getWorkload());
 
 				}
 				if(!pMin.opened)
@@ -560,16 +801,17 @@ public class Partitioning { //initialization parameters//
 			}
 
 
-			if(minP==null || (minP.getWorkload()+u)>(RMS_max_work) && minP.getWorkload()!=0)// open new bin
+			if(minP==null || (minP.getWorkload()+u)>(RMS_max_work/0.7) && minP.getWorkload()!=0)// open new bin
 			{  // && minP.getWorkload()!=0    for threshold < task utilization 05/01/19
 
 				nextP.opened=true;
 				minP=nextP;
-				System.out.println("work   "+minP.getWorkload()+ "  nextP  "+nextP.getId());
+			//	System.out.println("work   "+minP.getWorkload()+ "  nextP  "+nextP.getId());
 			}
 
-
-
+		/*	System.out.println("  minP  "+minP.getId()+" t "+t.getId()+
+					" wcet "+t.getWcet()+"  load  "+minP.getWorkload());
+*/
 			t.setPrimary(true);
 			t.setFrequency(fq);
 			minP.taskset.add(t);
@@ -578,7 +820,9 @@ public class Partitioning { //initialization parameters//
 			//	minP.setWorkload(Double.valueOf(twoDecimals.format(minP.getWorkload()+u)));
 			t.setP(minP);
 			t.setPrimaryProcessor(minP);
-			writer_allocation.write("\n"+minP.getId()+" "+minP.getWorkload()+" "+u+" "+t.getId()+" "
+	/*		System.out.println(" after minP  "+minP.getId()+" t "+t.getId()+ 
+					" wcet "+t.getWcet()+"  load  "+minP.getWorkload());
+*/			writer_allocation.write("\n"+minP.getId()+" "+minP.getWorkload()+" "+u+" "+t.getId()+" "
 					+t.getWcet()+" "+t.getPeriod());	
 
 		}
@@ -589,6 +833,8 @@ public class Partitioning { //initialization parameters//
 
     		}*/
 
+		
+		
 		//ALLOCATION OF BACKUPS/////RMS_max_work=1//////////////
 		writer_allocation.write("\nBACKUPS ");
 		writer_allocation.write("\nProc Workload u_task task WCET period ");
@@ -622,39 +868,39 @@ public class Partitioning { //initialization parameters//
 		for(ITask t : taskset)
 		{
 			double u = Double.valueOf(fourDecimals.format(((double)t.getWCET_orginal()/(double)t.getD()))),
-					RMS_max_work=threshold*2,min_work=threshold*2;//0.7  threshold*2maximum 1 can be used;
+					RMS_max_work=Math.min(threshold*2, 0.7),min_work=RMS_max_work;//threshold*2;//0.7  threshold*2maximum 1 can be used;
 			ITask backup_task;
 			Processor minP=null, nextP=null;
-			System.out.println("t  "+t.getId()+" u backup  "+u);
+		//	System.out.println("t  "+t.getId()+" u backup  "+u);
 			for(Processor pMin : freeProcList)
 			{
-
+				counter++;
 				if (pMin == t.getP())   // IF PRIMARY PROCESSOR CONTAINS THE TASK, ALLOCATE BACKUP ON SOME OTHER PROCESSOR
 					continue;
-				System.out.println("B work   "+pMin.getWorkload()+"  pMin  "+pMin.getId());
+			//	System.out.println("B work   "+pMin.getWorkload()+"  pMin  "+pMin.getId());
 
 				if(min_work >(pMin.getWorkload() )&& pMin.opened)
 				{
 					min_work=Double.valueOf(fourDecimals.format(pMin.getWorkload()));
 					minP = pMin;
-					System.out.println("B work   "+minP.getWorkload()+"  minP  "+minP.getId());
+				//	System.out.println("B work   "+minP.getWorkload()+"  minP  "+minP.getId());
 
 				}
 				if(!pMin.opened)
 				{
 
 					nextP=pMin;
-					System.out.println("breaking "+pMin.opened);
+				//	System.out.println("breaking "+pMin.opened);
 
 					break;
 				}
 
 			}
-			if( minP==null || (minP.getWorkload()+u)>RMS_max_work)// open new bin
+			if( minP==null || (minP.getWorkload()+u)>(0.7 )&& minP.getWorkload()!=0)// open new bin
 			{
 				nextP.opened=true;
 				minP=nextP;
-				System.out.println("work   "+minP.getWorkload()+ "  nextP alloted  "+nextP.getId());
+			//	System.out.println("work   "+minP.getWorkload()+ "  nextP alloted  "+nextP.getId());
 
 			}
 
@@ -670,24 +916,25 @@ public class Partitioning { //initialization parameters//
 			minP.setWorkload(minP.getWorkload()+u);
 			//	minP.setWorkload(Double.valueOf(twoDecimals.format(minP.getWorkload()+u)));
 			backup_task.setP(minP);
-
-			writer_allocation.write("\n"+minP.getId()+" "+minP.getWorkload()+" "+u+" "+t.getId()+" "
+		/*	System.out.println("  minP  "+minP.getId()+" t "+t.getId()+
+					" wcet "+t.getWcet()+"  load  "+minP.getWorkload());
+	*/		writer_allocation.write("\n"+minP.getId()+" "+minP.getWorkload()+" "+u+" "+t.getId()+" "
 					+t.getWcet()+" "+t.getPeriod());	
 
 		}
 
-		for(Processor pMin : freeProcList)
+	/*	for(Processor pMin : freeProcList)
 		{
 
 			writer_allocation.write("\nprocessor   "+pMin.getId()+"\t frequency   "+fq
 					+ " schedulability "+schedule.worstCaseResp_TDA_RMS_multi(pMin.taskset)+"\n");
 
-		}
+		}*/
 		writer_allocation.write("\nProc workload TASK U WCET PERIOD freq IS_PRIMARY BACKUP_PR PRIMARY_PR\n");
 
 		for(Processor pMin : freeProcList)
 		{
-			writer_allocation.write("\n\nprocessor   "+pMin.getId()+"\t frequency   "+fq+"\n");
+		//	writer_allocation.write("\n\nprocessor   "+pMin.getId()+"\t frequency   "+fq+"\n");
 			for(ITask t : pMin.taskset)
 
 			{
@@ -703,7 +950,8 @@ public class Partitioning { //initialization parameters//
 			}
 		}
 		writer_allocation.close();
-
+		System.out.println("counter  "+counter);
+		return counter;
 	}
 
 	// SETTING BACKUP FREQ  // 18-12-18 SET FREQ DURING SET_FREQ() PARAMETER SETTING  IN FREQ SETTING MAIN FUNCTION
@@ -895,8 +1143,9 @@ public class Partitioning { //initialization parameters//
 
 	}
 	 */
-	public  void allocation_M_WFD (ArrayList<ITask> taskset,   ArrayList<Processor> freeProcList ,  String filename) throws IOException
+	public  int allocation_M_WFD (ArrayList<ITask> taskset,   ArrayList<Processor> freeProcList ,  String filename) throws IOException
 	{
+		int counter=0;
 		Writer writer_allocation = new FileWriter(filename+"M_WFD.txt");
 		DecimalFormat twoDecimals = new DecimalFormat("#.##");  // upto 1 decimal points
 		DecimalFormat fourDecimals = new DecimalFormat("#.###");
@@ -911,8 +1160,8 @@ public class Partitioning { //initialization parameters//
 				//	//System.out.println("t1 "+p1.getId()+"  u1 "+Double.valueOf(fourDecimals.format(((double)p1.getWcet()/(double)p1.getDeadline()))));
 				//	//System.out.println("t2 "+p2.getId()+"  u2 "+Double.valueOf(fourDecimals.format(((double)p2.getWcet()/(double)p2.getDeadline()))));
 
-				double temp =  ( (Double.valueOf(twoDecimals.format(((double)p2.getWcet()/(double)p2.getDeadline()))))
-						-(Double.valueOf(twoDecimals.format(((double)p1.getWcet()/(double)p1.getDeadline()))))); // backup????? wcet uti??
+				double temp =  ( (Double.valueOf(fourDecimals.format(((double)p2.getWcet()/(double)p2.getDeadline()))))
+						-(Double.valueOf(fourDecimals.format(((double)p1.getWcet()/(double)p1.getDeadline()))))); // backup????? wcet uti??
 				//	//System.out.println("temp   "+temp);
 				if(temp>0)
 					cmp = 1;
@@ -954,25 +1203,28 @@ public class Partitioning { //initialization parameters//
 
 		for(ITask t : taskset)
 		{
-			double u = Double.valueOf(twoDecimals.format(((double)t.getWcet()/(double)t.getDeadline()))),
+			double u = Double.valueOf(fourDecimals.format(((double)t.getWcet()/(double)t.getDeadline()))),
 					work=0.7, rmsUB=0.7;
 			Processor minP=null;
 			//	//System.out.println(" u  "+u);
 
 			for(Processor pMin : freeProcList)
 			{
+				counter++;
 				if ( (pMin.getWorkload()+u>rmsUB) )   // IF PRIMARY PROCESSOR CONTAINS THE TASK, ALLOCATE BACKUP ON SOME OTHER PROCESSOR
 					continue;
 
 				if(work >pMin.getWorkload()  )
 				{
-					work=Double.valueOf(twoDecimals.format(pMin.getWorkload()));
+					work=Double.valueOf(fourDecimals.format(pMin.getWorkload()));
 					minP = pMin;
 				}
 				//	//System.out.println("work   "+work+"  minP  "+minP.getId()+ "  pMin  "+pMin.getId());
 
 			}
-
+		/*	System.out.println("  minP  "+minP.getId()+" t "+t.getId()+ 
+					" wcet "+t.getWcet()+" work load  "+minP.getWorkload());
+*/
 			t.setPrimary(true);
 			t.setFrequency(fq);
 			minP.taskset.add(t);
@@ -985,7 +1237,7 @@ public class Partitioning { //initialization parameters//
 					+t.getWcet()+" "+t.getPeriod());	
 		}
 
-
+		
 
 		//ALLOCATION OF BACKUPS
 		writer_allocation.write("\nBACKUPS ");
@@ -999,8 +1251,8 @@ public class Partitioning { //initialization parameters//
 				//	//System.out.println("t1 "+p1.getId()+"  u1 "+Double.valueOf(fourDecimals.format(((double)p1.getWcet()/(double)p1.getDeadline()))));
 				//	//System.out.println("t2 "+p2.getId()+"  u2 "+Double.valueOf(fourDecimals.format(((double)p2.getWcet()/(double)p2.getDeadline()))));
 
-				double temp =  ( (Double.valueOf(twoDecimals.format(((double)p2.getWCET_orginal()/(double)p2.getDeadline()))))
-						-(Double.valueOf(twoDecimals.format(((double)p1.getWCET_orginal()/(double)p1.getDeadline()))))); // backup????? wcet uti??
+				double temp =  ( (Double.valueOf(fourDecimals.format(((double)p2.getWCET_orginal()/(double)p2.getDeadline()))))
+						-(Double.valueOf(fourDecimals.format(((double)p1.getWCET_orginal()/(double)p1.getDeadline()))))); // backup????? wcet uti??
 				//	//System.out.println("temp   "+temp);
 				if(temp>0)
 					cmp = 1;
@@ -1019,26 +1271,29 @@ public class Partitioning { //initialization parameters//
 
 		for(ITask t : taskset)
 		{
-			double u = Double.valueOf(twoDecimals.format(((double)t.getWCET_orginal()/(double)t.getD()))),
+			double u = Double.valueOf(fourDecimals.format(((double)t.getWCET_orginal()/(double)t.getD()))),
 					work=0.7, rmsUB=0.7;
 			ITask backup_task;
 			Processor minP=null;
-			// System.out.println("t  "+t.getId()+" u backup  "+u);
+	//		 System.out.println("t  "+t.getId()+" u backup  "+u);
 			for(Processor pMin : freeProcList)
 			{
+				counter++;
 				//19-12-18 ||  (pMin.getWorkload()+u>rmsUB) if U(Pr)=0.68 case
 				if (pMin == t.getP()  ||  (pMin.getWorkload()+u>rmsUB) )   // IF PRIMARY PROCESSOR CONTAINS THE TASK, ALLOCATE BACKUP ON SOME OTHER PROCESSOR
 					continue;
 				if(work >pMin.getWorkload())
 				{
-					work=Double.valueOf(twoDecimals.format(pMin.getWorkload()));
+					work=Double.valueOf(fourDecimals.format(pMin.getWorkload()));
 					minP = pMin;
 				}
-				// System.out.println("work   "+work+"  pMin.getWorkload()  "+pMin.getWorkload()+ "  pMin  "+pMin.getId()+ " w "+ pMin.getWorkload());
+			//	 System.out.println("work   "+work+"  pMin.getWorkload()  "+pMin.getWorkload()+ "  pMin  "+pMin.getId()+ " w "+ pMin.getWorkload());
 
 			}
 
-
+		/*	System.out.println("  minP  "+minP.getId()+" t "+t.getId()+ 
+    				" wcet "+t.getWcet()+" work load  "+minP.getWorkload());
+*/
 
 			t.setBackupProcessor(minP);
 			backup_task = t.cloneTask_MWFD_RMS_EEPS();
@@ -1057,48 +1312,45 @@ public class Partitioning { //initialization parameters//
 					+t.getWcet()+" "+t.getPeriod());	   
 		}
 
-		for(Processor pMin : freeProcList)
+	/*	for(Processor pMin : freeProcList)
 		{
 
 			writer_allocation.write("\nprocessor   "+pMin.getId()+"\t frequency   "+fq
 					+ " schedulability "+schedule.worstCaseResp_TDA_RMS_multi(pMin.taskset)+"\n");
 
-		}
+		}*/
 		writer_allocation.write("\nProc workload TASK U WCET PERIOD freq IS_PRIMARY BACKUP_PR PRIMARY_PR\n");
 
 		for(Processor pMin : freeProcList)
 		{
-			writer_allocation.write("\n\nprocessor   "+pMin.getId()+"\t frequency   "+fq+"\n");
+		//	writer_allocation.write("\n\nprocessor   "+pMin.getId()+"\t frequency   "+fq+"\n");
 			for(ITask t : pMin.taskset)
 
 			{
 
-				writer_allocation.write(pMin.getId()+" "+pMin.getWorkload()+" "+t.getId()+" "+ Double.valueOf(twoDecimals.format(((double)t.getWcet()/(double)t.getDeadline())))
+				writer_allocation.write(pMin.getId()+" "+pMin.getWorkload()+" "+t.getId()+" "+ Double.valueOf(fourDecimals.format(((double)t.getWcet()/(double)t.getDeadline())))
 				+" "+t.getWCET_orginal()+" "+t.getPeriod()+" "+t.getFrequency()+" "+
 				" "+t.isPrimary()+	" "+t.getBackupProcessor().getId()+" "+t.getPrimaryProcessor().getId()+"\n");
 
-				//	    		System.out.println("task   "+t.getId()+"  u  "+ Double.valueOf(twoDecimals.format(((double)t.getWcet()/(double)t.getDeadline())))
+				//	    		System.out.println("task   "+t.getId()+"  u  "+ Double.valueOf(fourDecimals.format(((double)t.getWcet()/(double)t.getDeadline())))
 				//	    			+"   primary  "+t.isPrimary()+"  Proc   "+t.getP().getId()+	"   backup p  "+t.getBackupProcessor().getId()+
 				//	    			"   primary  "+t.getPrimaryProcessor().getId());
 				//	       
 			}
 		}
 		writer_allocation.close();
+		System.out.println("counter  "+counter);
+		return counter;
 	}
 
-	/**
-	 * @param taskset
-	 * @param freeProcList
-	 * @param filename
-	 * @param threshold
-	 * @throws IOException
-	 */
-	public  void alloc_Prioritywise_threshold (ArrayList<ITask> taskset,   ArrayList<Processor> freeProcList , 
+	
+	
+	public  int alloc_Prioritywise_threshold (ArrayList<ITask> taskset,   ArrayList<Processor> freeProcList , 
 			String filename,double threshold) throws IOException
 	{
-
+		int counter=0;
 		Writer writer_allocation = new FileWriter(filename+"Prioritywise_threshold.txt");
-		DecimalFormat twoDecimals = new DecimalFormat("#.##");  // upto 1 decimal points
+		DecimalFormat twoDecimals = new DecimalFormat("#.####");  // upto 1 decimal points
 
 		SchedulabilityCheck schedule = new SchedulabilityCheck();
 		double fq=1;
@@ -1166,33 +1418,33 @@ public class Partitioning { //initialization parameters//
 			Processor minP=null,nextP = null;
 
 			
-			System.out.println(" u  "+u+" currentProcId  "+ currentProcId);
+	//		System.out.println(" u  "+u+" currentProcId  "+ currentProcId);
 
 			if (!reverse) {
 				for (Processor pMin : freeProcList) {
-					//System.out.println("threshold   "+threshold+"  pMin  "+pMin.getId()+ "  pMin getWorkload "+pMin.getWorkload());
-
+			//	System.out.println("threshold   "+threshold+"  pMin  "+pMin.getId()+ "  pMin getWorkload "+pMin.getWorkload());
+					counter++;
 					if (currentProcId > pMin.getId())
 						continue;
 
 					if ((RMS_max_work) > (pMin.getWorkload()) && pMin.opened) {
 						//min_work=Double.valueOf(twoDecimals.format(pMin.getWorkload()));
 						minP = pMin;
-						System.out.println("work   " + RMS_max_work + "  minP  " + minP.getId()
+				/*		System.out.println("work   " + RMS_max_work + "  minP  " + minP.getId()
 						+ "  pMin getWorkload " + pMin.getWorkload());
-
+*/
 					}
 					if (!pMin.opened) {
 						nextP = pMin;
 
-						System.out.println("breaking " + pMin.opened + " nextP " + nextP.getId());
+				//		System.out.println("breaking " + pMin.opened + " nextP " + nextP.getId());
 						break;
 					}
 
 				}
 
 				if ( minP == null 
-						|| (minP.getWorkload() + u) > (RMS_max_work) 
+						|| (minP.getWorkload() + u) > (RMS_max_work/0.7) 
 						&& minP.getWorkload() != 0 )
 
 					//load should not be greater than 50% of total load open new bin 10-1-19 and 
@@ -1204,28 +1456,33 @@ public class Partitioning { //initialization parameters//
 						nextP.opened = true;
 						currentProcId++;
 						minP = nextP;
-						System.out.println("minP.getWorkload()   " + minP.getWorkload() + "  nextP  " + nextP.getId()
+			/*			System.out.println("minP.getWorkload()   " + minP.getWorkload() + "  nextP  " + nextP.getId()
 						+ " currentProcId " + currentProcId);
-					}
+			*/		}
 				}
 				if (nextP == null) {
 					reverse = true;
 
-					System.out.println("nextP " + nextP);
+			//		System.out.println("nextP " + nextP);
 
 				}
 			}
-			System.out.println("reverse   "+reverse);
+		//	System.out.println("reverse   "+reverse);
 			if(reverse)
 			{
-				System.out.println("freeProcList.size()   "+freeProcList.size());
+		//		System.out.println("freeProcList.size()   "+freeProcList.size());
 
-				minP=freeProcList.get((int)reverse_count--);
-				System.out.println("min reverse  "+minP.getId());
+				do
+				{
+				minP=freeProcList.get((int)reverse_count);
+				counter++;
+				if((minP.getWorkload()+u)>(RMS_max_work/0.7))
+					reverse_count--;
+				}while ((minP.getWorkload()+u)>(RMS_max_work/0.7) && reverse_count>0);
+				
+		//		System.out.println("min reverse  "+minP.getId());
 
 			}
-			System.out.println("  minP  "+minP.getId()+" t "+t.getId()+ 
-					" wcet "+t.getWcet()+"  load  "+minP.getWorkload());
 			t.setPrimary(true);
 			t.setFrequency(fq);
 			minP.taskset.add(t);
@@ -1234,11 +1491,370 @@ public class Partitioning { //initialization parameters//
 			//	minP.setWorkload(Double.valueOf(twoDecimals.format(minP.getWorkload()+u)));
 			t.setP(minP);
 			t.setPrimaryProcessor(minP);
+			
+			/*System.out.println(" after minP  "+minP.getId()+" t "+t.getId()+ 
+					" wcet "+t.getWcet()+"  load  "+minP.getWorkload());
+		*/
 			writer_allocation.write("\n"+minP.getId()+" "+minP.getWorkload()+" "+u+" "+t.getId()+" "
 					+t.getWcet()+" "+t.getPeriod());	
 			/*System.out.println(" after minP  "+minP.getId()+" t "+t.getId()+ 
-	    				" wcet "+t.getWcet()+" work load  "+minP.getWorkload());*/
+	    				" wcet "+t.getWcet()+" work load  "+minP.getWorkload());
+*/		}
+
+		/*// for processors having no load, in case of lesser U and large Proc
+	    	Iterator<Processor> itrP =  freeProcList.iterator();
+	    	while (itrP.hasNext())
+
+  		{
+	    		if(itrP.next().getWorkload()==0)
+	    			itrP.remove();
+  		}
+
+	    	System.out.println("  revised freeProcList size "+freeProcList.size());
+	    	writer_allocation.write("  \nrevised freeProcList size "+freeProcList.size());
+		 */
+		double max_U= (SystemMetric.utilisation(taskset)/currentProcId)*2;
+		//   System.out.println("max_U  "+max_U+  "  currentProcId "+currentProcId);
+		//ALLOCATION OF BACKUPS
+		writer_allocation.write("\nBACKUPS ");
+		writer_allocation.write("\nProc Workload u_task task WCET period ");
+		reverse_count = freeProcList.size()-1;
+		reverse=false;
+		currentProcId=1;
+		// SORT IN decreasing ORDER OF priority
+		Comparator<ITask> c1 = new Comparator<ITask>() {
+			public int compare(ITask p1, ITask p2) {
+				int cmp;
+				cmp= (int)(p2.getPeriod()-p1.getPeriod());	
+				if (cmp==0)
+				{
+					double temp =  ( (Double.valueOf(twoDecimals.format(((double)p2.getWcet()/(double)p2.getDeadline()))))
+							-(Double.valueOf(twoDecimals.format(((double)p1.getWcet()/(double)p1.getDeadline()))))); // backup????? wcet uti??
+					//	//System.out.println("temp   "+temp);
+					if(temp>0)
+						cmp = 1;
+					else
+						cmp=-1;
+					if(temp==0)
+						cmp=0;
+
+				}
+				if (cmp==0)														
+					cmp= (int)(p1.getId()-p2.getId());	
+				return cmp;
+			}
+		};
+		taskset.sort(c1);
+
+		freeProcList.sort(new Comparator<Processor>() {
+			public int compare(Processor p1, Processor p2) {
+				int cmp;
+				cmp = (int) (p1.getId()-p2.getId());	
+
+				return cmp;
+			}
+		});
+
+
+		/*	for(Processor ptemp : freeProcList)
+	    	    	{
+	    	    	System.out.println("  p  "+ptemp.getId());
+	    	    	}
+		 */
+
+		for(ITask t : taskset)
+		{
+			double u = Double.valueOf(twoDecimals.format(((double)t.getWCET_orginal()/(double)t.getD()))), 
+					RMS_max_work=Math.min(threshold*2, 0.7),min_work=0.7;//0.7;
+			ITask backup_task;
+			Processor minP=null, nextP=null;
+		//	System.out.println("B   t  "+t.getId()+" period "+t.getPeriod()+" u backup  "+u+"  currentProcId  "+currentProcId);
+			if (!reverse) {
+				for (Processor pMin : freeProcList) {
+					counter++;
+					if (pMin == t.getP() || currentProcId > pMin.getId()) // IF PRIMARY PROCESSOR CONTAINS THE TASK, ALLOCATE BACKUP ON SOME OTHER PROCESSOR
+						continue;
+					/*if (currentProcId > pMin.getId())
+							continue;*/
+			/*		System.out.println("B work   " + pMin.getWorkload() + "  pMin  " + pMin.getId() + " t.getP() "
+							+ t.getP().getId()+"  currentProcId  "+currentProcId);
+*/
+					if (pMin.opened) {
+						//	min_work=Double.valueOf(twoDecimals.format(pMin.getWorkload()));
+						minP = pMin;
+						//11-1-19
+						if ((minP.getWorkload() + u) > 0.7) {
+							currentProcId++;
+					/*		System.out.println("OPENED work   " + pMin.getWorkload() + "  pMin  " + pMin.getId() + " t.getP() "
+									+ t.getP().getId()+"  currentProcId  "+currentProcId);
+*/
+							continue;
+						}
+						if (RMS_max_work < (pMin.getWorkload() + u))
+							currentProcId++;
+						//		System.out.println("B work   "+minP.getWorkload()+"  minP  "+minP.getId());
+						break;
+					}
+
+					if (!pMin.opened) {
+						nextP = pMin;
+						
+					//		System.out.println("breaking "+pMin.opened + "  nextP.getId()  " +nextP.getId()+ "  minP.getId()  " +minP.getId());
+
+						break;
+					}
+
+				}
+				if (minP == null || (minP.getWorkload()+u)>0.7)/*
+									&& minP.getWorkload() != 0)*/// open new bin
+				{
+					if (nextP != null) {
+						nextP.opened = true;
+						minP = nextP;
+						//currentProcId++;
+				//		System.out.println("work   " + minP.getWorkload() + "  nextP alloted  " + nextP.getId());
+					}
+					if (nextP == null) {
+						reverse = true;
+
+				//		System.out.println("nextP " + nextP);
+
+					}
+
+				}
+			 
+			}
+		//	System.out.println("reverse   "+reverse);
+			if(reverse)
+			{
+		//		System.out.println("freeProcList.size()   "+freeProcList.size());
+				do
+				{
+				minP=freeProcList.get((int)reverse_count);
+				if((minP.getWorkload()+u)>0.7)
+					reverse_count--;
+			//	System.out.println("work   " + minP.getWorkload() + "  nextP alloted  " + nextP.getId());
+				
+				}while ((minP.getWorkload()+u)>0.7);
+				//System.out.println("min reverse  "+minP.getId());
+
+			}
+			
+		/*	System.out.println(" B minP  "+minP.getId()+" t "+t.getId()+"  currentProcId  "+currentProcId+ 
+					" wcet "+t.getWcet()+"  load  "+minP.getWorkload());
+*/
+			t.setBackupProcessor(minP);
+			backup_task = t.cloneTask_MWFD_RMS_EEPS();
+			backup_task.setPrimary(false);  //setup backup processor
+			backup_task.setFrequency(1);
+			backup_task.setBackupProcessor(minP);
+			backup_task.setPrimaryProcessor(t.getP());
+
+			minP.taskset.add(backup_task);
+			//18-12-18 problem =total uti   0.7228> LLB_N  0.7205   slack   0.0
+			minP.setWorkload(minP.getWorkload()+u);
+			//	minP.setWorkload(Double.valueOf(twoDecimals.format(minP.getWorkload()+u)));
+			backup_task.setP(minP);
+		/*	System.out.println("after B minP  "+minP.getId()+" t "+t.getId()+"  currentProcId  "+currentProcId+ 
+					" wcet "+t.getWcet()+"  load  "+minP.getWorkload());
+*/
+			writer_allocation.write("\n"+minP.getId()+" "+minP.getWorkload()+" "+u+" "+t.getId()+" "
+					+t.getWcet()+" "+t.getPeriod());	
+
 		}
+
+	/*	for(Processor pMin : freeProcList)
+		{
+
+			writer_allocation.write("\nprocessor   "+pMin.getId()+"\t frequency   "+fq
+					+ " schedulability "+schedule.worstCaseResp_TDA_RMS_multi(pMin.taskset)+"\n");
+
+		}
+*/
+		writer_allocation.write("\nProc workload TASK U WCET PERIOD freq IS_PRIMARY BACKUP_PR PRIMARY_PR\n");
+
+		for(Processor pMin : freeProcList)
+		{
+			//writer_allocation.write("\n\nprocessor   "+pMin.getId()+"\t frequency   "+fq+"\n");
+			for(ITask t : pMin.taskset)
+
+			{
+
+				writer_allocation.write(pMin.getId()+" "+pMin.getWorkload()+" "+t.getId()+" "+ Double.valueOf(twoDecimals.format(((double)t.getWcet()/(double)t.getDeadline())))
+				+" "+t.getWCET_orginal()+" "+t.getPeriod()+" "+t.getFrequency()+" "+
+				" "+t.isPrimary()+	" "+t.getBackupProcessor().getId()+" "+t.getPrimaryProcessor().getId()+"\n");
+
+				//	    		System.out.println("task   "+t.getId()+"  u  "+ Double.valueOf(twoDecimals.format(((double)t.getWcet()/(double)t.getDeadline())))
+				//	    			+"   primary  "+t.isPrimary()+"  Proc   "+t.getP().getId()+	"   backup p  "+t.getBackupProcessor().getId()+
+				//	    			"   primary  "+t.getPrimaryProcessor().getId());
+				//	       
+			}
+		}
+		writer_allocation.close();
+		System.out.println("counter  "+counter);
+		return counter;
+	}
+	/**
+	 * @param taskset
+	 * @param freeProcList
+	 * @param filename
+	 * @param threshold
+	 * @throws IOException
+	 */
+	public  void alloc_Prioritywise_threshold_unbalanced (ArrayList<ITask> taskset,   ArrayList<Processor> freeProcList , 
+			String filename,double threshold) throws IOException
+	{
+
+		Writer writer_allocation = new FileWriter(filename+"Prioritywise_threshold_un.txt");
+		DecimalFormat twoDecimals = new DecimalFormat("#.####");  // upto 1 decimal points
+
+		SchedulabilityCheck schedule = new SchedulabilityCheck();
+		double fq=1;
+		int currentProcId=1;
+
+
+
+		// SORT IN increasing ORDER OF priority
+		Comparator<ITask> c = new Comparator<ITask>() {
+			public int compare(ITask p1, ITask p2) {
+				int cmp;
+				cmp= (int)(p1.getPeriod()-p2.getPeriod());	
+
+				if (cmp==0)
+				{
+					double temp =  ( (Double.valueOf(twoDecimals.format(((double)p2.getWcet()/(double)p2.getDeadline()))))
+							-(Double.valueOf(twoDecimals.format(((double)p1.getWcet()/(double)p1.getDeadline()))))); // backup????? wcet uti??
+					//	//System.out.println("temp   "+temp);
+					if(temp>0)
+						cmp = 1;
+					else
+						cmp=-1;
+					if(temp==0)
+						cmp=0;
+
+				}
+
+				if (cmp==0)														
+					cmp= (int)(p1.getId()-p2.getId());	
+				return cmp;
+			}
+		};
+		taskset.sort(c);
+
+		/*for(ITask t : taskset)
+	    	{
+			System.out.println("task  "+t.getId()+" p "+t.getPriority()+" u "+ (Double.valueOf(twoDecimals.format(((double)t.getWcet()/(double)t.getDeadline())))) );
+	    	}
+		 */
+		// WHILE ALL PROCESSORS HAVE SCHEDULABLE TASKSETS ON GIVEN FREQUENCIES 
+		//	do{      
+
+		for(Processor pMin : freeProcList)
+		{
+
+			pMin.taskset.clear();
+			pMin.setWorkload(0);
+			//	//System.out.println("processor   "+pMin.getId()+"   size  "+pMin.taskset.size()+"  w  "+pMin.getWorkload());
+		}    		
+
+
+
+		//ALLOCATION OF PRIMARIES
+
+		writer_allocation.write("\nPRIMARY Prioritywise_threshold"+ threshold);
+		writer_allocation.write("\nProc Workload u_task task WCET period ");
+		freeProcList.get(0).opened=true;
+		long reverse_count = freeProcList.size()-1;
+		boolean reverse=false;
+		for(ITask t : taskset)
+		{
+
+			double u = Double.valueOf(twoDecimals.format(((double)t.getWcet()/(double)t.getDeadline()))),
+					RMS_max_work=threshold;//0.7/2;///50% of total load 10-1-19//threshold;// , min_work= RMS_max_work*(threshold/100);
+			Processor minP=null,nextP = null;
+
+			
+	//		System.out.println(" u  "+u+" currentProcId  "+ currentProcId);
+
+			if (!reverse) {
+				for (Processor pMin : freeProcList) {
+			//	System.out.println("threshold   "+threshold+"  pMin  "+pMin.getId()+ "  pMin getWorkload "+pMin.getWorkload());
+
+					if (currentProcId > pMin.getId())
+						continue;
+
+					if ((RMS_max_work) > (pMin.getWorkload()) && pMin.opened) {
+						//min_work=Double.valueOf(twoDecimals.format(pMin.getWorkload()));
+						minP = pMin;
+				/*		System.out.println("work   " + RMS_max_work + "  minP  " + minP.getId()
+						+ "  pMin getWorkload " + pMin.getWorkload());
+*/
+					}
+					if (!pMin.opened) {
+						nextP = pMin;
+
+				//		System.out.println("breaking " + pMin.opened + " nextP " + nextP.getId());
+						break;
+					}
+
+				}
+
+				if ( minP == null 
+						|| (minP.getWorkload() + u) > (RMS_max_work/0.7) 
+						&& minP.getWorkload() != 0 )
+
+					//load should not be greater than 50% of total load open new bin 10-1-19 and 
+					// for case where (threshold/RMS_max_work) < u_task and minP.getWorkload()=0 , do not open new bin
+				{
+
+					if( nextP!=null 	)
+					{
+						nextP.opened = true;
+						currentProcId++;
+						minP = nextP;
+			/*			System.out.println("minP.getWorkload()   " + minP.getWorkload() + "  nextP  " + nextP.getId()
+						+ " currentProcId " + currentProcId);
+			*/		}
+				}
+				if (nextP == null) {
+					reverse = true;
+
+			//		System.out.println("nextP " + nextP);
+
+				}
+			}
+		//	System.out.println("reverse   "+reverse);
+			if(reverse)
+			{
+		//		System.out.println("freeProcList.size()   "+freeProcList.size());
+
+				do
+				{
+				minP=freeProcList.get((int)reverse_count);
+				if((minP.getWorkload()+u)>(RMS_max_work/0.7))
+					reverse_count--;
+				}while ((minP.getWorkload()+u)>(RMS_max_work/0.7) && reverse_count>0);
+				
+		//		System.out.println("min reverse  "+minP.getId());
+
+			}
+			t.setPrimary(true);
+			t.setFrequency(fq);
+			minP.taskset.add(t);
+			//18-12-18 problem =total uti   0.7228> LLB_N  0.7205   slack   0.0
+			minP.setWorkload(minP.getWorkload()+u);
+			//	minP.setWorkload(Double.valueOf(twoDecimals.format(minP.getWorkload()+u)));
+			t.setP(minP);
+			t.setPrimaryProcessor(minP);
+			
+		/*	System.out.println(" after minP  "+minP.getId()+" t "+t.getId()+ 
+					" wcet "+t.getWcet()+"  load  "+minP.getWorkload());
+		*/
+			writer_allocation.write("\n"+minP.getId()+" "+minP.getWorkload()+" "+u+" "+t.getId()+" "
+					+t.getWcet()+" "+t.getPeriod());	
+			/*System.out.println(" after minP  "+minP.getId()+" t "+t.getId()+ 
+	    				" wcet "+t.getWcet()+" work load  "+minP.getWorkload());
+*/		}
 
 		/*// for processors having no load, in case of lesser U and large Proc
 	    	Iterator<Processor> itrP =  freeProcList.iterator();
@@ -1304,10 +1920,10 @@ public class Partitioning { //initialization parameters//
 		for(ITask t : taskset)
 		{
 			double u = Double.valueOf(twoDecimals.format(((double)t.getWCET_orginal()/(double)t.getD()))), 
-					RMS_max_work=Math.min(threshold*2, 0.7),min_work=0.7;//0.7;
+					RMS_max_work=0.7,min_work=0.7;//0.7;
 			ITask backup_task;
 			Processor minP=null, nextP=null;
-			System.out.println("B   t  "+t.getId()+" period "+t.getPeriod()+" u backup  "+u+"  currentProcId  "+currentProcId);
+		//	System.out.println("B   t  "+t.getId()+" period "+t.getPeriod()+" u backup  "+u+"  currentProcId  "+currentProcId);
 			if (!reverse) {
 				for (Processor pMin : freeProcList) {
 
@@ -1315,18 +1931,18 @@ public class Partitioning { //initialization parameters//
 						continue;
 					/*if (currentProcId > pMin.getId())
 							continue;*/
-					System.out.println("B work   " + pMin.getWorkload() + "  pMin  " + pMin.getId() + " t.getP() "
+			/*		System.out.println("B work   " + pMin.getWorkload() + "  pMin  " + pMin.getId() + " t.getP() "
 							+ t.getP().getId()+"  currentProcId  "+currentProcId);
-
+*/
 					if (pMin.opened) {
 						//	min_work=Double.valueOf(twoDecimals.format(pMin.getWorkload()));
 						minP = pMin;
 						//11-1-19
 						if ((minP.getWorkload() + u) > 0.7) {
 							currentProcId++;
-							System.out.println("OPENED work   " + pMin.getWorkload() + "  pMin  " + pMin.getId() + " t.getP() "
+					/*		System.out.println("OPENED work   " + pMin.getWorkload() + "  pMin  " + pMin.getId() + " t.getP() "
 									+ t.getP().getId()+"  currentProcId  "+currentProcId);
-
+*/
 							continue;
 						}
 						if (RMS_max_work < (pMin.getWorkload() + u))
@@ -1338,7 +1954,7 @@ public class Partitioning { //initialization parameters//
 					if (!pMin.opened) {
 						nextP = pMin;
 						
-							System.out.println("breaking "+pMin.opened + "  nextP.getId()  " +nextP.getId()+ "  minP.getId()  " +minP.getId());
+					//		System.out.println("breaking "+pMin.opened + "  nextP.getId()  " +nextP.getId()+ "  minP.getId()  " +minP.getId());
 
 						break;
 					}
@@ -1351,34 +1967,35 @@ public class Partitioning { //initialization parameters//
 						nextP.opened = true;
 						minP = nextP;
 						//currentProcId++;
-						System.out.println("work   " + minP.getWorkload() + "  nextP alloted  " + nextP.getId());
+				//		System.out.println("work   " + minP.getWorkload() + "  nextP alloted  " + nextP.getId());
 					}
 					if (nextP == null) {
 						reverse = true;
 
-						System.out.println("nextP " + nextP);
+				//		System.out.println("nextP " + nextP);
 
 					}
 
 				}
 			 
 			}
-			System.out.println("reverse   "+reverse);
+		//	System.out.println("reverse   "+reverse);
 			if(reverse)
 			{
-				System.out.println("freeProcList.size()   "+freeProcList.size());
+		//		System.out.println("freeProcList.size()   "+freeProcList.size());
 				do
 				{
-				minP=freeProcList.get((int)reverse_count--);
-				
+				minP=freeProcList.get((int)reverse_count);
+				if((minP.getWorkload()+u)>0.7)
+					reverse_count--;
 				}while ((minP.getWorkload()+u)>0.7);
-				System.out.println("min reverse  "+minP.getId());
+			//	System.out.println("min reverse  "+minP.getId());
 
 			}
 			
-			System.out.println(" B minP  "+minP.getId()+" t "+t.getId()+"  currentProcId  "+currentProcId+ 
+	/*		System.out.println(" B minP  "+minP.getId()+" t "+t.getId()+"  currentProcId  "+currentProcId+ 
 					" wcet "+t.getWcet()+"  load  "+minP.getWorkload());
-
+*/
 			t.setBackupProcessor(minP);
 			backup_task = t.cloneTask_MWFD_RMS_EEPS();
 			backup_task.setPrimary(false);  //setup backup processor
@@ -1391,19 +2008,21 @@ public class Partitioning { //initialization parameters//
 			minP.setWorkload(minP.getWorkload()+u);
 			//	minP.setWorkload(Double.valueOf(twoDecimals.format(minP.getWorkload()+u)));
 			backup_task.setP(minP);
-
+		/*	System.out.println("after B minP  "+minP.getId()+" t "+t.getId()+"  currentProcId  "+currentProcId+ 
+					" wcet "+t.getWcet()+"  load  "+minP.getWorkload());
+*/
 			writer_allocation.write("\n"+minP.getId()+" "+minP.getWorkload()+" "+u+" "+t.getId()+" "
 					+t.getWcet()+" "+t.getPeriod());	
 
 		}
 
-		for(Processor pMin : freeProcList)
+	/*	for(Processor pMin : freeProcList)
 		{
 
 			writer_allocation.write("\nprocessor   "+pMin.getId()+"\t frequency   "+fq
 					+ " schedulability "+schedule.worstCaseResp_TDA_RMS_multi(pMin.taskset)+"\n");
 
-		}
+		}*/
 
 		writer_allocation.write("\nProc workload TASK U WCET PERIOD freq IS_PRIMARY BACKUP_PR PRIMARY_PR\n");
 
@@ -1429,13 +2048,13 @@ public class Partitioning { //initialization parameters//
 	}
 
 
-	public  void alloc_Prioritywise (ArrayList<ITask> taskset,   ArrayList<Processor> freeProcList , 
-			String filename,double threshold) throws IOException
+	public  int alloc_Prioritywise (ArrayList<ITask> taskset,   ArrayList<Processor> freeProcList , 
+			String filename) throws IOException
 	{
 
 		Writer writer_allocation = new FileWriter(filename+"Prioritywise_threshold.txt");
-		DecimalFormat twoDecimals = new DecimalFormat("#.##");  // upto 1 decimal points
-
+		DecimalFormat twoDecimals = new DecimalFormat("#.####");  // upto 1 decimal points
+		int counter=0;
 		SchedulabilityCheck schedule = new SchedulabilityCheck();
 		double fq=1;
 		int currentProcId=1;
@@ -1489,9 +2108,10 @@ public class Partitioning { //initialization parameters//
 
 		//ALLOCATION OF PRIMARIES
 
-		writer_allocation.write("\nPRIMARY Prioritywise_threshold"+ threshold);
+		writer_allocation.write("\nPRIMARY Prioritywise");
 		writer_allocation.write("\nProc Workload u_task task WCET period ");
 		freeProcList.get(0).opened=true;
+		boolean reverse=false;
 		long reverse_count = freeProcList.size()-1;
 		for(ITask t : taskset)
 		{
@@ -1500,34 +2120,37 @@ public class Partitioning { //initialization parameters//
 					RMS_max_work=0.7/2;///50% of total load 10-1-19//threshold;// , min_work= RMS_max_work*(threshold/100);
 			Processor minP=null,nextP = null;
 
-			boolean reverse=false;
-			System.out.println(" u  "+u+" currentProcId  "+ currentProcId);
+		
+		//	System.out.println(" u  "+u+" currentProcId  "+ currentProcId);
 
 			if (!reverse) {
 				for (Processor pMin : freeProcList) {
 					//System.out.println("threshold   "+threshold+"  pMin  "+pMin.getId()+ "  pMin getWorkload "+pMin.getWorkload());
-
+					counter++;
 					if (currentProcId > pMin.getId())
 						continue;
 
-					if ((RMS_max_work) > (pMin.getWorkload()) && pMin.opened) {
+					if ((RMS_max_work) > (pMin.getWorkload()) && pMin.opened) 
+					{
+						
 						//min_work=Double.valueOf(twoDecimals.format(pMin.getWorkload()));
 						minP = pMin;
-						System.out.println("work   " + RMS_max_work + "  minP  " + minP.getId()
+				/*		System.out.println("work   " + RMS_max_work + "  minP  " + minP.getId()
 						+ "  pMin getWorkload " + pMin.getWorkload());
-
+*/
 					}
-					if (!pMin.opened) {
+					if (!pMin.opened)
+					{
 						nextP = pMin;
 
-						System.out.println("breaking " + pMin.opened + " nextP " + nextP.getId());
+					//	System.out.println("breaking " + pMin.opened + " nextP " + nextP.getId());
 						break;
 					}
 
 				}
 
 				if ( minP == null 
-						|| (minP.getWorkload() + u) > (RMS_max_work) 
+						|| (minP.getWorkload() + u) > (RMS_max_work/0.7) 
 						&& minP.getWorkload() != 0 )
 
 					//load should not be greater than 50% of total load open new bin 10-1-19 and 
@@ -1539,29 +2162,36 @@ public class Partitioning { //initialization parameters//
 						nextP.opened = true;
 						currentProcId++;
 						minP = nextP;
-						System.out.println("minP.getWorkload()   " + minP.getWorkload() + "  nextP  " + nextP.getId()
+					/*	System.out.println("minP.getWorkload()   " + minP.getWorkload() + "  nextP  " + nextP.getId()
 						+ " currentProcId " + currentProcId);
-					}
+				*/	}
 				}
-				if (nextP == null) {
+				if (nextP == null)
+				{
 					reverse = true;
 
-					System.out.println("nextP " + nextP);
+				//	System.out.println("nextP " + nextP);
 
 				}
 			}
-			System.out.println("reverse   "+reverse);
+		//	System.out.println("reverse   "+reverse);
 			if(reverse)
 			{
-				System.out.println("freeProcList.size()   "+freeProcList.size());
+			//	System.out.println("freeProcList.size()   "+freeProcList.size());
 
-				minP=freeProcList.get((int)reverse_count--);
-				System.out.println("min reverse  "+minP.getId());
+				do
+				{
+				minP=freeProcList.get((int)reverse_count);
+				if((minP.getWorkload()+u)>(RMS_max_work/0.7))
+					reverse_count--;
+				}while ((minP.getWorkload()+u)>(RMS_max_work/0.7) && reverse_count>0);
+				
+			//	System.out.println("min reverse  "+minP.getId());
 
 			}
-			System.out.println("  minP  "+minP.getId()+" t "+t.getId()+ 
+		/*	System.out.println("  minP  "+minP.getId()+" t "+t.getId()+ 
 					" wcet "+t.getWcet()+"  load  "+minP.getWorkload());
-			t.setPrimary(true);
+	*/		t.setPrimary(true);
 			t.setFrequency(fq);
 			minP.taskset.add(t);
 			//18-12-18 problem =total uti   0.7228> LLB_N  0.7205   slack   0.0
@@ -1592,10 +2222,10 @@ public class Partitioning { //initialization parameters//
 		//ALLOCATION OF BACKUPS
 		writer_allocation.write("\nBACKUPS ");
 		writer_allocation.write("\nProc Workload u_task task WCET period ");
-
-
+		reverse_count = freeProcList.size()-1;
+		reverse=false;
 		currentProcId=1;
-		// SORT IN increasing ORDER OF priority
+		// SORT IN decreasing ORDER OF priority
 		Comparator<ITask> c1 = new Comparator<ITask>() {
 			public int compare(ITask p1, ITask p2) {
 				int cmp;
@@ -1642,46 +2272,80 @@ public class Partitioning { //initialization parameters//
 					RMS_max_work=0.7,min_work=0.7;//0.7;
 			ITask backup_task;
 			Processor minP=null, nextP=null;
-			System.out.println("t  "+t.getId()+" period "+t.getPeriod()+" u backup  "+u);
-			for(Processor pMin : freeProcList)
-			{
+	//		System.out.println("t  "+t.getId()+" period "+t.getPeriod()+" u backup  "+u);
+			if (!reverse) {
+				for (Processor pMin : freeProcList) {
+					counter++;
+					if (pMin == t.getP() || currentProcId > pMin.getId()) // IF PRIMARY PROCESSOR CONTAINS THE TASK, ALLOCATE BACKUP ON SOME OTHER PROCESSOR
+						continue;
+					/*if (currentProcId > pMin.getId())
+							continue;*/
+			/*		System.out.println("B work   " + pMin.getWorkload() + "  pMin  " + pMin.getId() + " t.getP() "
+							+ t.getP().getId()+"  currentProcId  "+currentProcId);
+*/
+					if (pMin.opened) {
+						//	min_work=Double.valueOf(twoDecimals.format(pMin.getWorkload()));
+						minP = pMin;
+						//11-1-19
+						if ((minP.getWorkload() + u) > 0.7) {
+							currentProcId++;
+				/*			System.out.println("OPENED work   " + pMin.getWorkload() + "  pMin  " + pMin.getId() + " t.getP() "
+									+ t.getP().getId()+"  currentProcId  "+currentProcId);
+*/	
+							continue;
+						}
+						if (RMS_max_work < (pMin.getWorkload() + u))
+							currentProcId++;
+						//		System.out.println("B work   "+minP.getWorkload()+"  minP  "+minP.getId());
+						break;
+					}
 
-				if (pMin == t.getP() || currentProcId > pMin.getId())   // IF PRIMARY PROCESSOR CONTAINS THE TASK, ALLOCATE BACKUP ON SOME OTHER PROCESSOR
-					continue;
-				/*if (currentProcId > pMin.getId())
-						continue;*/
-				System.out.println("B work   "+pMin.getWorkload()+"  pMin  "+pMin.getId()+" t.getP() "+t.getP().getId());
+					if (!pMin.opened) {
+						nextP = pMin;
+						
+				//			System.out.println("breaking "+pMin.opened + "  nextP.getId()  " +nextP.getId()+ "  minP.getId()  " +minP.getId());
 
-				if(RMS_max_work >(pMin.getWorkload() +u) && pMin.opened)
-				{
-					//	min_work=Double.valueOf(twoDecimals.format(pMin.getWorkload()));
-					minP = pMin;
-					//		System.out.println("B work   "+minP.getWorkload()+"  minP  "+minP.getId());
-					break;
+						break;
+					}
+
 				}
-				else 
-					currentProcId++;
 
-				if(!pMin.opened)
-				{
-					nextP=pMin;
-					//		System.out.println("breaking "+pMin.opened);
-
-					break;
-				}
-
-			}
 			if( minP==null || (minP.getWorkload()+u)>RMS_max_work
 					&& minP.getWorkload() != 0)// open new bin
 			{
-				nextP.opened=true;
-				minP=nextP;
-				System.out.println("work   "+minP.getWorkload()+ "  nextP alloted  "+nextP.getId());
+				if (nextP != null) {
+					nextP.opened = true;
+					minP = nextP;
+					//currentProcId++;
+			//		System.out.println("work   " + minP.getWorkload() + "  nextP alloted  " + nextP.getId());
+				}
+				if (nextP == null) {
+					reverse = true;
+				
+			//		System.out.println("nextP " + nextP);
+
+				}
 
 			}
-			System.out.println(" B minP  "+minP.getId()+" t "+t.getId()+ 
-					" wcet "+t.getWcet()+"  load  "+minP.getWorkload());
+		 
+		}
+	//	System.out.println("reverse   "+reverse);
+		if(reverse)
+		{
+		//	System.out.println("freeProcList.size()   "+freeProcList.size());
+			do
+			{
+			minP=freeProcList.get((int)reverse_count);
+			if((minP.getWorkload()+u)>0.7)
+				reverse_count--;
+			}while ((minP.getWorkload()+u)>0.7 && reverse_count>0);
+		//	System.out.println("min reverse  "+minP.getId());
 
+		}
+
+		/*	System.out.println(" B minP  "+minP.getId()+" t "+t.getId()+ 
+					" wcet "+t.getWcet()+"  load  "+minP.getWorkload());
+*/
 			t.setBackupProcessor(minP);
 			backup_task = t.cloneTask_MWFD_RMS_EEPS();
 			backup_task.setPrimary(false);  //setup backup processor
@@ -1700,14 +2364,14 @@ public class Partitioning { //initialization parameters//
 
 		}
 
-		for(Processor pMin : freeProcList)
+	/*	for(Processor pMin : freeProcList)
 		{
 
 			writer_allocation.write("\nprocessor   "+pMin.getId()+"\t frequency   "+fq
 					+ " schedulability "+schedule.worstCaseResp_TDA_RMS_multi(pMin.taskset)+"\n");
 
 		}
-
+*/
 		writer_allocation.write("\nProc workload TASK U WCET PERIOD freq IS_PRIMARY BACKUP_PR PRIMARY_PR\n");
 
 		for(Processor pMin : freeProcList)
@@ -1728,7 +2392,8 @@ public class Partitioning { //initialization parameters//
 			}
 		}
 		writer_allocation.close();
-
+		System.out.println("counter  "+counter);
+		return counter;
 	}
 	/*public  void allocation_Prioritywise (ArrayList<ITask> taskset,   ArrayList<Processor> freeProcList ,  String filename) throws IOException
 	{

@@ -6,6 +6,7 @@
 
 package taskGeneration;
 
+import java.util.Arrays;
 import java.util.Random;
 
 /**
@@ -135,6 +136,7 @@ public class UUniFastDiscardTaskSetGen {
         //for multiprocessor
         public ITask[] generate(long hyperperiod_factor, double Utotal, long MAX_PERIOD, long maxHyperPeriod) {
     		ITask[] taskset = new ITask[nbTask];
+    		double  total_U=0.0;int size=0;
     		 boolean duplicate=false;
                     double[] util;
              //       System.out.println(" UUniFastDiscardTaskSetGen generate");
@@ -151,6 +153,12 @@ public class UUniFastDiscardTaskSetGen {
     		// for hyperperiod factor to implement DVS in decimal values
     			//	taskset[i] = taskGenerator.generate(util[i], deadlineModel,MAX_PERIOD,hyperperiod_factor);
     				taskset[i] = taskGenerator.generateP(util[i], deadlineModel,taskPeriods[i],hyperperiod_factor);
+    				total_U+=(double)taskset[i].getWcet()/(double)taskset[i].getPeriod();
+    				size=i;
+    						
+    			//	System.out.println("i "+i+"  total_U  "+total_U+" size "+size);
+    				if(total_U>Utotal)
+    					break;
     				/*duplicate=false;	
     				if (utilization>0.7 && i>0)
     				{
@@ -179,6 +187,7 @@ public class UUniFastDiscardTaskSetGen {
     				//     System.out.println(" UUniFastDiscardTaskSetGen generate");           
     			*/}
     			// taskGenerator.finalizeTaskset(taskset, nbProc);
+    			taskset= Arrays.copyOf(taskset,size);
     			return taskset;
             }
         
@@ -325,7 +334,7 @@ public class UUniFastDiscardTaskSetGen {
 					temp+=util[i];
 					
 					sumU = nextSumU;
-					if (util[i] > 0.5) {//19-12-18util[i] > 0.5 for RMS task_u must be less than 0.7
+					if (util[i] > 0.3) {//19-12-18util[i] > 0.5 for RMS task_u must be less than 0.7
 						discard = true;
 					}
 				//	System.out.println("discard  "+discard +"i  "+i+"  util[i]   "+util[i] + "  temp  "+(temp));

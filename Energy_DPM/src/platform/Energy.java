@@ -12,7 +12,7 @@ public class Energy {
 	private final static double C_EFF = 1.52;
 	
 	private final static double Max_Freq_Dependent_Power =C_EFF*1*1*1;
-	private final static double S_critical=0.30; //.15
+	private final static double S_critical=0.40; //.15
 	private final static double S_min=0.15;
 
 

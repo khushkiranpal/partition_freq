@@ -243,11 +243,11 @@ public class MixedNonUniformFeasibleFreq {
 				///11-12-18	SCHEDULABILITY CHECK AT F=1
 				 schedulability = schedule.worstCaseResp_TDA_RMS(p.taskset);//, fq);
 			
-				 if(!schedulability)
+				/* if(!schedulability)
 				 {
 					 System.out.println(" not Schedulable processor "+p.getId()+" workload "+p.getWorkload());
 					 break;
-				 }
+				 }*/
 				 ps.setResponseTime(p.taskset);//11-12-18
 				ps.setPromotionTime(p.taskset); 
 				

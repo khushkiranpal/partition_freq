@@ -50,7 +50,7 @@ public class Processor {
      private double idleEnergy=0;
      private double sleepEnergy=0;
      private double activeEnergy=0;
-     private double frequency;
+     private double frequency=1;
      private double workload=0;	
      public boolean opened = false; //WFD PARTITIONING// BIN OPENED OR CLOSED
      

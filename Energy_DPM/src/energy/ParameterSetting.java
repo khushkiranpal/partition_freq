@@ -22,7 +22,7 @@ public class ParameterSetting {
 		//	t.setWcet( Double.valueOf(twoDecimals.format((double)t.getWcet()/frequency)));
 
 			t.setWcet( Double.valueOf(twoDecimals.format((double)t.getWCET_orginal()/frequency)));
-	//		System.out.println("wcet  "+t.getWcet());
+			//System.out.println("wcet  "+t.getWcet());
 			t.setBCET(t.getBest_CET()/frequency);
 		//	System.out.println("bcet   "+t.getBCET());
 
@@ -51,7 +51,7 @@ public class ParameterSetting {
 				else
 					t.setFrequency(1);
 				t.setWcet( Double.valueOf(twoDecimals.format((double)t.getWCET_orginal()/t.getFrequency())));
-			//	System.out.println("frequency    "+frequency+"   task  "+t.getId()+"   wcet  "+t.getWcet());
+		//	System.out.println("frequency    "+frequency+"   task  "+t.getId()+"   wcet  "+t.getWcet());
 				t.setBCET(t.getBest_CET()/t.getFrequency());
 			//	System.out.println("bcet   "+t.getBCET());
 
@@ -535,6 +535,50 @@ public class ParameterSetting {
 	}
 	
 	
+	public void setResponseTimeMixed(ArrayList<ITask> taskset)
+	{
+		
+		taskset.sort(new Comparator<ITask>() {//11-12-18
+			public int compare(ITask p1, ITask p2) {
+				int cmp;
+				cmp= (int)(p1.getPeriod()-p2.getPeriod());
+				return cmp;
+			}
+		});	
+		
+		for(ITask t:taskset)
+	      {
+			//System.out.println("task i "+t.getId()+" wcet  "+t.getWcet()+"  getWCET_orginal "+t.getWCET_orginal());
+	            double w=t.getWcet(),w1=w-1;
+	            while(w != w1)
+	            {
+	                w1 = w;
+	                w =t.getWcet();
+	                for(int i=0; taskset.get(i) != t; i++)
+	                {
+	                	
+	                	
+	                	w += (int) (Math.ceil((double) w1/(double)taskset.get(i).getPeriod())
+	                			*(double)taskset.get(i).getWcet());
+	          //     	 System.out.println("task j "+taskset.get(i).getId()+"  wcet  "+(double)taskset.get(i).getWCET_orginal()+"   response time  "+w);
+	                }
+	            }
+	        
+	            
+	            if( w > t.getDeadline())
+	             t.setResponseTime(0);
+	            else
+	            	t.setResponseTime(w);
+	    //   System.out.println("response time  "+w+" d "+t.getDeadline());
+	        }
+		/*	for (ITask t : taskset)
+			{
+				System.out.println("task i "+t.getId()+" wcet  "+t.getWcet()+"  response  "+t.getResponseTime());
+				
+
+			}*/
+		}
+	
 	public void setResponseTimeForMWFD(ArrayList<ITask> taskset)
 	{
 		
@@ -591,7 +635,12 @@ public class ParameterSetting {
 		for (ITask t : taskset)
 		{
 			if(t.getResponseTime()==0)
+			{
 				t.setSlack(0);
+				
+				  System.out.println("task   "+t.getId()+" wcet  "+t.getWCET_orginal()+" res time "+t.getResponseTime()+"  deadline  "+t.getDeadline()+"  promotion   "+t.getSlack()+"  primary "+t.isPrimary());
+					
+			}
 			else
 			t.setSlack(t.getDeadline()-t.getResponseTime());
 	//   System.out.println("task   "+t.getId()+" wcet  "+t.getWCET_orginal()+" res time "+t.getResponseTime()+"  deadline  "+t.getDeadline()+"  promotion   "+t.getSlack());

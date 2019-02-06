@@ -13,7 +13,7 @@ public class Reliability {
 		exponent = (d*(1-freq))/(1-fMin);
 		lamda_f = lamda_0*Math.pow(10, exponent);// .000001 *10^(d(1-f)/(1-crit_freq))
 		rel= Math.exp(-1*lamda_f*(wcet_org/freq));//e^(-lamda_f*c_i/f)
-	//	System.out.println(" wcet "+wcet_org+" (wcet_org/freq) "+(wcet_org/freq) +" fMin "+fMin+" freq "+freq +" d "+d+"reliability_task  "+rel);
+//	System.out.println(" wcet "+wcet_org+" (wcet_org/freq) "+(wcet_org/freq) +" fMin "+fMin+" freq "+freq +" d "+d+"reliability_task  "+rel);
 		return rel;
 	}
 	
@@ -28,6 +28,44 @@ public class Reliability {
 		//	System.out.println("reliabilitySystem "+sys_rel);
 		}
 	return sys_rel;
+	}
+	
+	public double setRelib_Mogdhaddas_25_1_19(ArrayList<ITask> taskset, double fMin, 
+			int d, double pof_1, double hyper)
+	{
+		double reli_task =0, freq=1, pof, r_total=1, r_sys, pof_sys=0;
+		freq=1;
+		
+		do
+		{
+			 r_total=1;
+		for(ITask t : taskset)
+		{
+			int instances = (int)((long)hyper/(long)t.getPeriod());
+			
+	/*		System.out.println("hyper  "+hyper +"  t.getPeriod()  "+t.getPeriod() );
+				System.out.println("t "+ t.getId()+" freq "+freq);
+	*/		double R_f = reliability_task(t.getWCET_orginal(), fMin,  freq,  d); //
+			reli_task= 1-Math.pow(1-R_f, 2);//1-(1-r(s))^2 eq-10 moghadas
+			r_sys= Math.pow(reli_task, instances);
+		//System.out.println("reli_task  "+reli_task  +"  r_sys  "+r_sys+"  instances "+ instances );
+			r_total*=r_sys;
+		//	System.out.println("r_total  "+r_total    );
+			
+			
+		}
+		
+		pof_sys=1-r_total;
+	/*	System.out.printf("pof_sys  %.25f",pof_sys);
+		System.out.printf("  pof_1  %.25f",pof_1);
+		System.out.println("  freq  "+ freq );
+	*/	freq-=0.1;
+		}while (pof_1>=pof_sys 
+				&& freq>=(fMin));
+		//System.out.println("    freq "+freq);
+		freq+=0.2;// freq-0.1- due to freq-=0.1;. NEXT freq-0.1 DUE TO CONDITION	t.getPof_1())>pof_freq FAILURE	
+		//System.out.println(" return   freq "+freq);
+		return freq;
 	}
 	
 	
@@ -136,5 +174,71 @@ public class Reliability {
 	return (1-sys_POF);// eq 7 haque On reliability management 5.1
 	}
 	
+	public double POFSystem_FREQ_KIRAN(ArrayList<ITask> taskset, double freq, double fMin, 
+			int d, double pof_1, double hyper)
+	{
+		double r_sys,reli_task, r_total=1;
+		
+		for(ITask t : taskset)
+		{
+			int instances = (int)((long)hyper/(long)t.getPeriod());
+		
+	//	System.out.println("hyper  "+hyper +"  t.getPeriod()  "+t.getPeriod() +"  instances  "+instances);
+			double R_f = reliability_task(t.getWCET_orginal(), fMin ,  freq,  d); //
+			double R_f_max = reliability_task(t.getWCET_orginal(), fMin ,  1,  d); 
+			reli_task= 1-((1-R_f)*(1-R_f_max));// 1-Math.pow(1-R_f, 2);//1-(1-r(s))^2 eq-10 moghadas
+			r_sys= Math.pow(reli_task, instances);
+		//	System.out.println("ki  reli_task  "+reli_task  +"  r_sys  "+r_sys+"  instances "+ instances );
+			r_total*=r_sys;
+		//	System.out.println("r_total  "+r_total    );
+			
+	//		System.out.println("sys_POF  "+sys_POF +" t "+t.getId()+ " hyper "+hyper);
+		}
+	
+	return (1-r_total);// eq 7 haque On reliability management 5.1
+	}
+	
+	public double POFSystem_FREQ_MOG(ArrayList<ITask> taskset, double freq, double fMin, 
+			int d, double pof_1, double hyper)
+	{
+		double r_sys,reli_task, r_total=1;
+		
+		for(ITask t : taskset)
+		{
+			int instances = (int)((long)hyper/(long)t.getPeriod());
+		
+	//	System.out.println("hyper  "+hyper +"  t.getPeriod()  "+t.getPeriod() +"  instances  "+instances);
+			double R_f = reliability_task(t.getWCET_orginal(), fMin ,  freq,  d); //
+			reli_task= 1-Math.pow(1-R_f, 2);//1-(1-r(s))^2 eq-10 moghadas
+			r_sys= Math.pow(reli_task, instances);
+		//	System.out.println("POFF  reli_task  "+reli_task  +"  r_sys  "+r_sys+"  instances "+ instances );
+			r_total*=r_sys;
+		//	System.out.println("r_total  "+r_total    );
+			
+	//		System.out.println("sys_POF  "+sys_POF +" t "+t.getId()+ " hyper "+hyper);
+		}
+	
+	return (1-r_total);// eq 7 haque On reliability management 5.1
+	}
+	
+	public double POFSystem_ORIGINAL(ArrayList<ITask> taskset)
+	{
+		double R_TOTAL=1,r_sys;
+		long hyper =SystemMetric.hyperPeriod(taskset)*10;
+		for(ITask t : taskset)
+		{
+			int instances = (int)((long)hyper/(long)t.getPeriod());
+		
+	//	System.out.println("hyper  "+hyper +"  t.getPeriod()  "+t.getPeriod() +"  instances  "+instances);
+	
+			
+			r_sys= Math.pow(t.getReliability(), instances);
+			R_TOTAL = R_TOTAL*r_sys;
+		//	R_TOTAL = R_TOTAL*t.getReliability();
+	//		System.out.println("sys_POF  "+sys_POF +" t "+t.getId()+ " hyper "+hyper);
+		}
+	
+	return (1-R_TOTAL);// eq 7 haque On reliability management 5.1
+	}
 	
 }

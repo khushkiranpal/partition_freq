@@ -8,6 +8,7 @@ import org.apache.commons.math3.util.MultidimensionalCounter.Iterator;
 import queue.ISortedQueue;
 import queue.SortedQueuePeriod;
 import taskGeneration.ITask;
+import taskGeneration.SystemMetric;
 
 public class SysClockFreq {
     public DecimalFormat twoDecimals = new DecimalFormat("#.##");  // upto 2 decimal points
@@ -106,6 +107,46 @@ public class SysClockFreq {
 			
 			if (freq<t.getFrequency() )
 				freq=t.getFrequency();
+		//	System.out.println("task freq  "+ t.getFrequency());
+		}
+	//	System.out.println("   freq   "+Double.valueOf(twoDecimals.format(freq)));	
+		return Double.valueOf(twoDecimals.format(freq));
+	
+	}
+	public double SysClockF_multi(ArrayList<ITask> taskset_MAIN)
+	{
+		ArrayList<ITask> taskset = new ArrayList<ITask>();
+		for(ITask tp : taskset_MAIN)
+		{
+			if(tp.isPrimary())
+				taskset.add(tp);
+		}
+		double freq_i, freq=0,e;
+		double load = (SystemMetric.utilisation(taskset));
+		double slack ;
+		double LLB_N =taskset.size()*(Math.pow(2, ((double)1/(double)(taskset.size())))-1);
+		
+		//5-12-18 LLB_N
+		slack = Math.max(0, (1- load));//Math.max(0, (1- load));
+	//	System.out.println("   slack   " +slack);
+		double utiPrimary=0;
+		for(ITask tp : taskset)
+		{
+			if(tp.isPrimary())
+				utiPrimary += 	Double.valueOf(twoDecimals.format(((double)tp.getWCET_orginal()/(double)tp.getD())));
+			  /*       System.out.println("  p  "+p.getId()+"  task   "+tp.getId()+"   wcet  "+tp.getWcet()+
+        " task u   "+	Double.valueOf(twoDecimals.format(((double)tp.getWCET_orginal()/(double)tp.getD())))+
+        		"   utiPrimary    "+utiPrimary);*/
+			      }
+		
+		for (ITask t : taskset)
+		{
+		
+		//	System.out.println("Task  "+t.getId()+"  utiPrimary+slack  "+(utiPrimary+slack));
+			e= energyMinFreq(t, taskset, utiPrimary);
+			
+			if (freq<e )
+				freq=e;
 		//	System.out.println("task freq  "+ t.getFrequency());
 		}
 	//	System.out.println("   freq   "+Double.valueOf(twoDecimals.format(freq)));	

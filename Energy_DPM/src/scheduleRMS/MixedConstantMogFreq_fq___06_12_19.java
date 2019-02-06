@@ -33,7 +33,7 @@ import taskGeneration.SystemMetric;
  * @author KHUSHKIRAN PAL
  *  DYNAMIC 
  */
-public class MixedConstantBackFreq_fq___06_12_19 {
+public class MixedConstantMogFreq_fq___06_12_19 {
 	//GLOBAL PARAMETERS
 	/*public static final  long hyperperiod_factor= 10;	//
 			public static final   double  CRITICAL_TIME=  1.5*hyperperiod_factor;///1500;  //
@@ -72,7 +72,7 @@ public class MixedConstantBackFreq_fq___06_12_19 {
 		String filename7= outputFolder+"faultmogMULTI_6_12_18 "+"_"+inputfilename+"_"+date+".txt";
 		// //System.out.println(filename);
 		//  Writer writer_allocation = new FileWriter(filename);
-	//	Writer writer_schedule = new FileWriter(filename1);
+		//Writer writer_schedule = new FileWriter(filename1);
 		Writer writer_energy = new FileWriter(filename2);
 	//	Writer writer_tasks = new FileWriter(filename3);
 	//	Writer writer_analysis = new FileWriter(filename5);
@@ -89,7 +89,7 @@ public class MixedConstantBackFreq_fq___06_12_19 {
 		double U_SUM;
 		//  int m =2;// no. of processors
 		int total_no_tasksets=1;
-		writer_energy.write(partitioning+"mog UTILIZATION TOTAL_E success fail\n");
+		writer_energy.write(partitioning+"mog UTILIZATION TOTAL_E success fail pof_1 pof_MOG\n");
 		//	+ "P_ACTIVE_TIME P_IDLE_TIME P_SLEEP S_ACTIVE_TIME S_IDLE_TIME S_SLEEP");
 		/*writer_tasks.write("MixedfullBackupsExecuted partialBackupsExecuted fullBackupsCancelled"
 				+ "	 cancelledPrimariesFull   cancelledPrimariesPartial  fullPrimariesExecuted totalPrimaries noOfFaults");
@@ -194,15 +194,21 @@ public class MixedConstantBackFreq_fq___06_12_19 {
         	Reliability reliab = new Reliability();
         ///////setRelib_Mogdhaddas(ArrayList<ITask> taskset, double fMin, double freq, int d)
         	reliab.setRelib_original(taskset, CRITICAL_freq, 1, d);
-        	
-        	reliab.setRelib_Mogdhaddas(taskset, CRITICAL_freq,  d);
-        
-
+        	double pof_1 = reliab.POFSystem_ORIGINAL(taskset);
+       // 	System.out.printf("  pof_1 %.25f\n ",pof_1);
+        	double maxRelFreq=reliab.setRelib_Mogdhaddas_25_1_19(taskset, CRITICAL_freq, 
+        			d,pof_1, hyper*hyperperiod_factor);
+        	double pof_MOG = reliab.POFSystem_FREQ_MOG(taskset, Double.valueOf(twoDecimals.format(maxRelFreq) ), CRITICAL_freq, 
+        			d, pof_1, hyper*hyperperiod_factor);
+        //	System.out.printf("  pof_MOG %.25f\n ",pof_MOG);
+     /*   	double pof_ki = reliab.POFSystem_FREQ_KIRAN(taskset,  CRITICAL_freq
+        			, CRITICAL_freq, d, pof_1, hyper*hyperperiod_factor);
+        	System.out.printf("  pof_ki %.25f\n ",pof_ki);*/
     		/////////////////////PARTIONING /////////////////////
 			Partitioning partition  = new Partitioning();
 		//	String partitioning= "M_WFD";
-			double threshold  = (SystemMetric.utilisation(taskset)/(m*0.7));
-			System.out.println("threshold  "+threshold );
+			double threshold  = Math.max((SystemMetric.utilisation(taskset)/(m)), 0);
+		//	System.out.println("threshold  "+threshold );
 
 			switch (partitioning) { 
 	        case "WFD": 
@@ -211,15 +217,22 @@ public class MixedConstantBackFreq_fq___06_12_19 {
 	        case "WFD_THRES": 
 	        	partition.allocation_WFD_fixedThresh(taskset, freeProcList, filename,threshold );
 	            break; 
+	        case "WFD_THRES_UN": 
+	        	partition.allocation_WFD_fixedThresh(taskset, freeProcList, filename,threshold );
+	            break; 
 	        case "M_WFD": 
 	        	partition.allocation_M_WFD(taskset, freeProcList, filename);
 	            break; 
-	     /*   case "PRIORITY": 
-	        	partition.allocation_Prioritywise(taskset, freeProcList, filename);
-	            break; */
+	        case "PRIORITY": 
+	        	partition.alloc_Prioritywise(taskset, freeProcList, filename);
+	            break; 
 	        case "PRIORITY_THRES": 
 	        	partition.alloc_Prioritywise_threshold(taskset, freeProcList, filename,threshold); 
 	            break; 
+	        case "PRIORITY_THRES_UN": 
+	        	partition.alloc_Prioritywise_threshold(taskset, freeProcList, filename,threshold); 
+	            break; 
+	            
 	        
 	        }
 
@@ -265,27 +278,28 @@ public class MixedConstantBackFreq_fq___06_12_19 {
 				
 	     	for(Processor p : freeProcList)
 			{
-	     		double maxRelFreq=0;
+	     		/*double maxRelFreq=0;
 	     		for(ITask t : p.taskset)
 	     		{
 	     			if(t.getReliableFreq()>maxRelFreq)
 	     				maxRelFreq= t.getReliableFreq();
 	     		}
-	     		
+	     		*/
 				double load = (SystemMetric.utilisation(p.taskset));
-			//	System.out.println("   load   " +load);
+			
 				double LLB_N = p.taskset.size()*(Math.pow(2, ((double)1/(double)(p.taskset.size())))-1);
-				
+			//	System.out.printf("   load %.2f  " ,(load));
 				double slack = Math.max(0, (LLB_N- load));
-			//	System.out.println("   slack   " +slack);
+			//	System.out.println("   maxRelFreq   " +maxRelFreq);
 			
 				
 				// MAIN SETTING OF FREQUENCY FOR ALL TASKS TO  RELIABLE FREQ
-				fq = Math.max(CRITICAL_freq, Math.max((load/LLB_N),maxRelFreq) );
+				fq = Math.max(CRITICAL_freq, Math.max((load/LLB_N),
+						Double.valueOf(twoDecimals.format(maxRelFreq) )));
 				fq= discreteFreq(fq);
 				
 				
-				//System.out.println("  fq   "+fq);
+		//	System.out.println("  fq   "+fq);
 
 				/*do
 				{*/
@@ -298,11 +312,12 @@ public class MixedConstantBackFreq_fq___06_12_19 {
 				// MAIN SETTING OF FREQUENCY FOR ALL TASKS (P+B ) TO ....RELIABLE FREQ
 				//fq = Math.max(CRITICAL_freq, Math.max((load/LLB_N),maxRelFreq) );
 					ps.set_freq(p.taskset,Double.valueOf(twoDecimals.format(fq)));   // set frequency
-					ps.setResponseTimeForMWFD(p.taskset);
+					ps.setResponseTimeMixed(p.taskset);
 					ps.setPromotionTime(p.taskset);
 					schedulability = schedule.worstCaseResp_TDA_RMS_multi(p.taskset);
-					//System.out.println("schedulability  "+schedulability);
-					
+					System.out.println("schedulability  "+schedulability);
+					p.setFrequency(fq); 
+					System.out.println(" p "+p.getId()+"  f "+p.getFrequency() );
 /*
 					schedulability = schedule.worstCaseResp_TDA_RMS_multi(p.taskset);//, fq);
 					
@@ -335,7 +350,7 @@ public class MixedConstantBackFreq_fq___06_12_19 {
 					}*/
 
 				/*}while(!schedulability );*/
-				p.setFrequency(fq); 
+			//	p.setFrequency(fq); 
 				
 				
 			}
@@ -368,10 +383,17 @@ public class MixedConstantBackFreq_fq___06_12_19 {
 				fault = f.lamda_F(hyper, CRITICAL_freq, CRITICAL_freq, d);        //////////////FAULT////////////
 			else
 				fault=	f.readFromFile(faultFilename);
-
-			/* 	//TEMP FAULT INDUCTION
-     	ArrayList<Long> tempFault = new ArrayList<Long>();
+	     /*	 int procount=1;
+			fault.add(5);
+			fault.add(10);
+			fault.add(15);
+			fault.add(20);*/
+			 	//TEMP FAULT INDUCTION
+ /*    	ArrayList<Long> tempFault = new ArrayList<Long>();
     	ArrayList<Long> tempProcCheck = new ArrayList<Long>();
+    	tempFault.add((long)12); 	tempFault.add((long)495);   
+    	tempFault.add((long)330);     	tempFault.add((long)363); 
+		tempFault.add((long)613);	        	tempFault.add((long)627); 
     		tempFault.add((long)67686);     	tempFault.add((long)146601); 
     		tempFault.add((long)362765);	        	tempFault.add((long)82600);  
     		tempFault.add((long)101549);        	tempFault.add((long)128175);
@@ -382,6 +404,10 @@ public class MixedConstantBackFreq_fq___06_12_19 {
     	tempFault.add((long)268401);        
   //  	tempFault.add((long)302960);    
    	tempFault.add((long)6165);
+		tempProcCheck.add((long)4);  tempProcCheck.add((long)4);  
+		
+tempProcCheck.add((long)6);   	tempProcCheck.add((long)8);
+tempProcCheck.add((long)4);tempProcCheck.add((long)4);   
     	tempProcCheck.add((long)2);   	tempProcCheck.add((long)2);
     	tempProcCheck.add((long)1);tempProcCheck.add((long)2);     
     		tempProcCheck.add((long)1);tempProcCheck.add((long)2);
@@ -406,9 +432,9 @@ public class MixedConstantBackFreq_fq___06_12_19 {
 		{
 			System.out.println(" tempFault "+tempFaultItr.next()+"  size  "+tempFault.size());
 		}
-
-			 
 */
+			 
+
 
 		//	writer_analysis.write("Proc T U_O U_F WCET_O WCET Period F RESPONSE PROM ISPRIMARY BACK_P priority\n");
 
@@ -558,28 +584,29 @@ public class MixedConstantBackFreq_fq___06_12_19 {
 		while(itr.hasNext())
 			//System.out.println("promotionTimes   "+itr.next());
 			 */
-	//		writer_schedule.write("\nmogMULTI_6_12_18P_ID TASKID FREQ WCET wcet_o ACET BCET DEADLINE P/B RESP promo\n");
+		/*	writer_schedule.write("\nmogMULTI_6_12_18P_ID TASKID FREQ WCET wcet_o ACET BCET DEADLINE P/B RESP promo\n");
 
 			for(Processor p : freeProcList)
 			{
+			//	System.out.println(" p "+p.getId()+"  f "+p.getFrequency() );
 				for(ITask t :p.taskset)
 				{
 					if(t.getResponseTime()==0)
 						response_zero++;
-			/*		writer_schedule.write("\n"+p.getId()+" "+t.getId()+" "+t.getFrequency()+" "+t.getWcet()+ " "+t.getWCET_orginal()+" "+t.getACET() 
+					writer_schedule.write("\n"+p.getId()+" "+t.getId()+" "+t.getFrequency()+" "+t.getWcet()+ " "+t.getWCET_orginal()+" "+t.getACET() 
 					+" "+t.getBCET()+" "+t.getDeadline()+" "+t.isPrimary()+" "+t.getResponseTime()+" "+t.getSlack());
-		*/		}
+				}
 			}
-		/*	if(response_zero>0)
+			if(response_zero>0)
 				writer_schedule.write(" \nResponse time zero "+response_zero);
 
 			writer_schedule.write("\ns/e P_ID TASKID  JOBID PR/BK FREQ EX_FRQ WCET wcet_o DEADLINE  isPreempted STARTTIME ENDTIME "
 					+ "executed remain energy "
 					+ "FAULTY fullBackupsExecuted partialBackupsExecuted fullBackupsCancelled"
 					+ "	 cancelledPrimariesFull   cancelledPrimariesPartial  fullPrimariesExecuted noOfFaults \n");
-
-				writer_analysis.write("P_ID TASKID JOBID PR/BK TIME");
-		*/	nextActivationTime=  activationTimes.pollFirst();
+*/
+			//	writer_analysis.write("P_ID TASKID JOBID PR/BK TIME");
+			nextActivationTime=  activationTimes.pollFirst();
 			// //System.out.println("nextActivationTime  "+nextActivationTime);
 			timeToNextPromotion = promotionTimes.get(0);
 			
@@ -762,14 +789,17 @@ public class MixedConstantBackFreq_fq___06_12_19 {
 						Job lowP = proc.getCurrentJob() , highP = proc.readyQueue.first();
 						
 						
-						if(lowP.isPrimary())
-						{
+					/*	if(lowP.isPrimary())
+						{*/
 							 executedTime = time-lowP.getStartTime();
-							 remain_time_p = (long) ((lowP.getRemainingTime()-executedTime)*lowP.getExec_frequency());
+							 // mog 30/1/19
+							 remain_time_p = (long) ((lowP.getRemainingTime()-executedTime)*proc.getFrequency());
+								
+							// remain_time_p = (long) ((lowP.getRemainingTime()-executedTime)*lowP.getExec_frequency());
 						//	System.out.println("p remain_time_p "+remain_time_p);
 							 if(remain_time_p>0)
 								{
-							energy_consumed= energyConsumed.energyActive((executedTime), lowP.getExec_frequency());
+							energy_consumed= energyConsumed.energyActive((executedTime), proc.getFrequency());
 							lowP.setRemainingTime(lowP.getRemainingTime()- (executedTime));
 							lowP.setRomainingTimeCost(remain_time_p);
 							proc.setActiveEnergy(energy_consumed);
@@ -779,8 +809,8 @@ public class MixedConstantBackFreq_fq___06_12_19 {
 									lowP.setEndTime(time);
 									proc.setEndTimeCurrentJob(time);
 								}
-									//System.out.println("in preemption TIME  "+time+"  p  "+proc.getId()+" active  "+ proc.activeTime+"  energy  "+proc.getActiveEnergy());
-						}
+						//	System.out.println("in preemption TIME  "+time+"  p  "+proc.getId()+" active  "+ proc.activeTime+"  energy  "+proc.getActiveEnergy());
+							 /*		}
 						else
 						{
 							 executedTime = time-lowP.getStartTime();
@@ -799,21 +829,21 @@ public class MixedConstantBackFreq_fq___06_12_19 {
 									lowP.setEndTime(time);
 									proc.setEndTimeCurrentJob(time);
 								}
-							/*
+							
         		    	if(time>3627100 && proc.getId()==4)
         		    	System.out.println("in preemption TIME  "+time+"  p  "+proc.getId()+" t  "+ lowP.getTaskId()+
         		    			"  rem time  "+lowP.getRomainingTimeCost());
-							 */  
-						}
+							   
+						}*/
 
 			//			System.out.println("o remain_time_p "+remain_time_p);
 						
 						if (remain_time_p>0) {
 							lowP.isPreempted=true;
 							proc.setBusy(false);
-						
-					/*		if (lowP.isPrimary())
-								writer_schedule.write("\np " + proc.getId() + " " + proc.getCurrentJob().getTaskId()
+							proc.readyQueue.addJob(lowP);
+					//		if (lowP.isPrimary())
+	/*							writer_schedule.write("\np " + proc.getId() + " " + proc.getCurrentJob().getTaskId()
 										+ " " + proc.getCurrentJob().getJobId() + " " + proc.getCurrentJob().isPrimary()
 										+ " " + Double.valueOf(twoDecimals.format(proc.getCurrentJob().getFrequency()))
 										+ " " + Double.valueOf(twoDecimals.format(proc.getCurrentJob().getExec_frequency())) + " "
@@ -821,18 +851,20 @@ public class MixedConstantBackFreq_fq___06_12_19 {
 										+ proc.getCurrentJob().getRomainingTimeCost() + " "
 										+ proc.getCurrentJob().getDeadline() + " " + proc.getCurrentJob().isPreempted
 										+ " " + proc.getCurrentJob().getStartTime());
-							else
-								writer_schedule.write("\np " + proc.getId() + " " + proc.getCurrentJob().getTaskId()
+	
+			writer_schedule.write("\t " + time + " " + executedTime + " " + remain_time_p + " "
+									+ energy_consumed + "  preempted ");
+					
+		*/			/*	//	else mog 
+							//	writer_schedule.write("\np " + proc.getId() + " " + proc.getCurrentJob().getTaskId()
 										+ " " + proc.getCurrentJob().getJobId() + " " + proc.getCurrentJob().isPrimary()
 										+ " " + Double.valueOf(twoDecimals.format(proc.getCurrentJob().getFrequency()))
 										+ " " +Double.valueOf(twoDecimals.format( proc.getCurrentJob().getExec_frequency() ))+ " "
 										+ proc.getCurrentJob().getRomainingTimeCost() + " "
 										+ proc.getCurrentJob().getRomainingTimeCost() + " "
 										+ proc.getCurrentJob().getDeadline() + " " + proc.getCurrentJob().isPreempted
-										+ " " + proc.getCurrentJob().getStartTime());
-							writer_schedule.write("\t " + time + " " + executedTime + " " + remain_time_p + " "
-									+ energy_consumed + "  preempted ");
-				*/		}
+										+ " " + proc.getCurrentJob().getStartTime());*/
+							}
 						
 						
 
@@ -843,6 +875,7 @@ public class MixedConstantBackFreq_fq___06_12_19 {
 				// PRIMARY JOB CHECKING AND EXECUTIOM
 				for (Processor proc : freeProcList)
 				{
+				//	System.out.println(" p "+proc.getId()+"  f "+proc.getFrequency() );
 					if(!proc.readyQueue.isEmpty() && proc.isBusy()==false )
 					{
 
@@ -875,9 +908,9 @@ public class MixedConstantBackFreq_fq___06_12_19 {
 								}
 								 
 								 
-						/*		 writer_schedule.write("\n"+proc.getId()+" "+proc.getIdleStartTime()+" "+time+
+			/*					 writer_schedule.write("\n"+proc.getId()+" "+proc.getIdleStartTime()+" "+time+
 										 " "+proc.getIdleSlotLength()+" idleend");
-					*/			 proc.setIdleSlotLength(0); // REINITIALIZE THE IDLE LENGTH
+			*/					 proc.setIdleSlotLength(0); // REINITIALIZE THE IDLE LENGTH
 							
 							 }
 
@@ -889,9 +922,15 @@ public class MixedConstantBackFreq_fq___06_12_19 {
 							 proc.setProc_state(proc_state.ACTIVE);
 							 proc.getCurrentJob().setStartTime(time);
 							 //set end time
-
-							
-							 if(proc.getCurrentJob().isPrimary())
+							 //26/1/19  due to mogdas backup= primary
+						/*	 if(proc.getCurrentJob().getTaskId()==230)
+							 System.out.println("getRomainingTimeCost  "+proc.getCurrentJob().getRomainingTimeCost()
+									+ "  getExec_frequency  "+proc.getCurrentJob().getExec_frequency()
+									+" proc f "+proc.getFrequency());
+					*/			 proc.getCurrentJob().setRemainingTime( (long)(proc.getCurrentJob().getRomainingTimeCost()/ proc.getFrequency()));
+							 proc.getCurrentJob().setEndTime(time+proc.getCurrentJob().getRemainingTime());
+				
+							/* if(proc.getCurrentJob().isPrimary())
 							 {
 								 proc.getCurrentJob().setRemainingTime( (long)(proc.getCurrentJob().getRomainingTimeCost()/ proc.getCurrentJob().getExec_frequency()));
 								 proc.getCurrentJob().setEndTime(time+proc.getCurrentJob().getRemainingTime());
@@ -900,31 +939,31 @@ public class MixedConstantBackFreq_fq___06_12_19 {
 							 else
 							 {
 								 proc.getCurrentJob().setEndTime(time+proc.getCurrentJob().getRomainingTimeCost());
-							 }
+							 }*/
 							 proc.setEndTimeCurrentJob(proc.getCurrentJob().getEndTime()-1);
 							 proc.setBusy(true);
 
 
-							 /*	 if(proc.getId()==4 && time >3627099 )
-     	        			System.out.println(time+ "p  "+proc.getId()+" current task "+proc.getCurrentJob().getTaskId() +
+					/*		 	 if(proc.getCurrentJob().getTaskId()==230)
+     	        			System.out.println(time+ " start p  "+proc.getId()+" current task "+proc.getCurrentJob().getTaskId() +
      	        					"   job  "+proc.getCurrentJob().getJobId()+ " isCompletionSuccess() "+proc.getCurrentJob().isCompletionSuccess()+
      	        					 "  p/b "+proc.getCurrentJob().isPrimary()+" end  "+ proc.getCurrentJob().getEndTime()
      	        					 +" prom time "+ proc.getCurrentJob().getPromotionTime());
-							  */
+					*/		  
 
-					/*		 if(proc.getCurrentJob().isPrimary())
-								 writer_schedule.write("\ns "+proc.getId()+" "+proc.getCurrentJob().getTaskId()+" "+proc.getCurrentJob().getJobId()+" "+
+						//	 if(proc.getCurrentJob().isPrimary())
+			/*					 writer_schedule.write("\ns "+proc.getId()+" "+proc.getCurrentJob().getTaskId()+" "+proc.getCurrentJob().getJobId()+" "+
 										 proc.getCurrentJob().isPrimary()+" "+Double.valueOf(twoDecimals.format(	proc.getCurrentJob().getFrequency()))
 										 +" "+Double.valueOf(twoDecimals.format(	proc.getCurrentJob().getExec_frequency()))+" "+proc.getCurrentJob().getRemainingTime()+" "+
 										 proc.getCurrentJob().getRomainingTimeCost()+" "+ proc.getCurrentJob().getDeadline()
 										 +" "+	proc.getCurrentJob().isPreempted+" "+time+" ");
-							 else
+			*/				/* else // mog
 								 writer_schedule.write("\ns "+proc.getId()+" "+proc.getCurrentJob().getTaskId()+" "+proc.getCurrentJob().getJobId()+" "+
 										 proc.getCurrentJob().isPrimary()+" "+Double.valueOf(twoDecimals.format(	proc.getCurrentJob().getFrequency()))
 										 +" "+Double.valueOf(twoDecimals.format(proc.getCurrentJob().getExec_frequency()))+" "+	proc.getCurrentJob().getRomainingTimeCost()+" "+proc.getCurrentJob().getRomainingTimeCost()+" "+
 										 proc.getCurrentJob().getDeadline()
-										 +" "+	proc.getCurrentJob().isPreempted+" "+time+" ");
-*/
+										 +" "+	proc.getCurrentJob().isPreempted+" "+time+" ");*/
+
 
 						}
 					}
@@ -935,9 +974,12 @@ public class MixedConstantBackFreq_fq___06_12_19 {
 						// //System.out.println("  p  " +proc.getId()+"  proc.getIdleSlotLength()  "+proc.getIdleSlotLength());
 						if (proc.getIdleSlotLength()==0)
 						{
-							// //System.out.println("idle slot started");
-
-			//				writer_schedule.write("\n"+proc.getId()+ " "+time+" idlestart");
+				/*		System.out.println("idle slot started");
+						System.out.println(" current  "+proc.getCurrentJob().getTaskId());
+					*/	proc.setCurrentJob(null);
+					//	System.out.println(" current  "+proc.getCurrentJob());
+						
+				//			writer_schedule.write("\n"+proc.getId()+ " "+time+" idlestart");
 							proc.setIdleSlotLength(proc.getIdleSlotLength()+1);// INCREMENT THE  LENGTH OF IDLE SLOT FROM 0 TO 1
 							proc.setIdleStartTime(time);
 							proc.freq_set_tasks.clear();
@@ -951,13 +993,13 @@ public class MixedConstantBackFreq_fq___06_12_19 {
 						if (proc.getTimeToNextArrival()>CRITICAL_TIME)
 						{
 							proc.setProc_state(proc_state.SLEEP);
-							proc.setFrequency(0);
+							//proc.setFrequency(0);
 							
 						}
 						else
 						{
 							proc.setProc_state(proc_state.IDLE);
-							proc.setFrequency(min_freq);
+						//	proc.setFrequency(min_freq);
 						}// //System.out.println("// PRIMARY JOB CHECKING AND EXECUTIOM ELSE PART   p  "+proc.getId()+"   timeToNextArrival   "+proc.getTimeToNextArrival()+"   Proc_state  "+proc.getProc_state());
 					}
 				}
@@ -990,11 +1032,12 @@ public class MixedConstantBackFreq_fq___06_12_19 {
 				//			if(time == 			11000)
 				//{
 				Random rand = new Random();
-
-
+				
+			///	System.out.println(" fault   "+fault.size());
+				
 				if ( fault.size()>0 )
 				{
-					//	System.out.println("out fault time  "+time+"  task  "+lastExecutedJob.getTaskId()+" job  "+lastExecutedJob.getJobId());
+					//	System.out.println("out fault time  "+time);//+"  task  "+lastExecutedJob.getTaskId()+" job  "+lastExecutedJob.getJobId());
 
 					if(time==fault.get(0)*hyperperiod_factor)
 
@@ -1008,9 +1051,9 @@ public class MixedConstantBackFreq_fq___06_12_19 {
 								count--;
 								if (p.getProc_state()==ProcessorState.ACTIVE && p.getCurrentJob().isPrimary() && !p.getCurrentJob().isFaulty())
 								{	
-							/*		System.out.println("                    fault time  "+time+"  proc  "+p.getId()+"            task  "+
+									System.out.println("                    fault time  "+time+"  proc  "+p.getId()+"            task  "+
 											p.getCurrentJob().getTaskId()+" job  "+p.getCurrentJob().getJobId() + "  prom time  "+p.getCurrentJob().getPromotionTime());
-*/
+
 									p.getCurrentJob().setCompletionSuccess(false);
 									p.getCurrentJob().setFaulty(true);
 									//	noOfFaults++;
@@ -1025,9 +1068,9 @@ public class MixedConstantBackFreq_fq___06_12_19 {
 										{
 											temp1.setFaulty(true);
 											noOfFaults++;
-							/*				writer_fault.write("\n"+total_no_tasksets+" "+time+" "+p.getId()+" "+ " B "+" "+temp1.getTaskId()+" "+temp1.getJobId()+" "
-													+temp1.getRemainingTime()+" "+temp1.getPromotionTime()+" "+temp1.getDeadline());
-							*/				found=true;
+//											writer_fault.write("\n"+total_no_tasksets+" "+time+" "+p.getId()+" "+ " B "+" "+temp1.getTaskId()+" "+temp1.getJobId()+" "
+//													+temp1.getRemainingTime()+" "+temp1.getPromotionTime()+" "+temp1.getDeadline());
+										found=true;
 											//			 System.out.println("time    "+time+"backupJobQueue task  "+temp1.getTaskId()+"  job   "+temp1.getJobId() );
 											//			System.out.println("noOfFaults "+noOfFaults+" is primary "+temp1.isPrimary());
 											break;
@@ -1047,12 +1090,12 @@ public class MixedConstantBackFreq_fq___06_12_19 {
 										{
 											temp1.setFaulty(true);
 											noOfFaults++;
-					/*						writer_fault.write("\n"+total_no_tasksets+" "+time+" "+p.getId()+" "+ " R "+" "+temp1.getTaskId()+" "+temp1.getJobId()+" "
-													+temp1.getRemainingTime()+" "+temp1.getPromotionTime()+" "+temp1.getDeadline());
-					*/						found=true;
-										/*	System.out.println("time    "+time+"readyQueue task  "+temp1.getTaskId()+"  job   "+temp1.getJobId() );
+//											writer_fault.write("\n"+total_no_tasksets+" "+time+" "+p.getId()+" "+ " R "+" "+temp1.getTaskId()+" "+temp1.getJobId()+" "
+//													+temp1.getRemainingTime()+" "+temp1.getPromotionTime()+" "+temp1.getDeadline());
+											found=true;
+											System.out.println("time    "+time+"readyQueue task  "+temp1.getTaskId()+"  job   "+temp1.getJobId() );
 											System.out.println("noOfFaults "+noOfFaults+" is primary "+temp1.isPrimary());
-										*/	break;
+											break;
 										}
 									}
 
@@ -1065,9 +1108,9 @@ public class MixedConstantBackFreq_fq___06_12_19 {
 										p.getCurrentJob().getBackupProcessor().getCurrentJob().setFaulty(true);
 
 										noOfFaults++;
-							/*			writer_fault.write("\n"+total_no_tasksets+" "+time+" "+p.getId()+" "+ " RUN "+" "+temp1.getTaskId()+" "+temp1.getJobId()+" "
-												+temp1.getRemainingTime()+" "+temp1.getPromotionTime()+" "+temp1.getDeadline());
-*/
+//										writer_fault.write("\n"+total_no_tasksets+" "+time+" "+p.getId()+" "+ " RUN "+" "+temp1.getTaskId()+" "+temp1.getJobId()+" "
+//												+temp1.getRemainingTime()+" "+temp1.getPromotionTime()+" "+temp1.getDeadline());
+
 										//		System.out.println("time    "+time+" running task  "+p.getCurrentJob().getBackupProcessor().getCurrentJob().getTaskId()+"  job   "+p.getCurrentJob().getBackupProcessor().getCurrentJob().getJobId() );
 										//		System.out.println("noOfFaults "+noOfFaults+" is primary "+p.getCurrentJob().getBackupProcessor().getCurrentJob().isPrimary());
 
@@ -1103,6 +1146,7 @@ public class MixedConstantBackFreq_fq___06_12_19 {
 
             			for ( Processor p : freeProcList)
             			{
+            				boolean found = false;
             				if (p.getId()==tempProcCheck.get(0) )
             				{
 
@@ -1125,6 +1169,7 @@ public class MixedConstantBackFreq_fq___06_12_19 {
             							{
             								temp1.setFaulty(true);
             								noOfFaults++;
+            								found=true;
             								writer_fault.write("\n"+total_no_tasksets+" "+time+" "+temp1.getTaskId()+" "+temp1.getJobId()+" "
             										+temp1.getRemainingTime()+" "+temp1.getPromotionTime()+" "+temp1.getDeadline());
 
@@ -1150,6 +1195,7 @@ public class MixedConstantBackFreq_fq___06_12_19 {
 
 
             								noOfFaults++;
+            								found=true;
             					System.out.println("time    "+time+"readyQueue task  "+temp1.getTaskId()+"  job   "+temp1.getJobId() );
             								System.out.println("noOfFaults "+noOfFaults+" is primary "+temp1.isPrimary());
             								break;
@@ -1157,7 +1203,7 @@ public class MixedConstantBackFreq_fq___06_12_19 {
             						}
 
             						// faulty job may be running 
-            						if(p.getCurrentJob().getBackupProcessor().getCurrentJob().getTaskId()== p.getCurrentJob().getTaskId() &&
+            						if(!found && p.getCurrentJob().getBackupProcessor().getCurrentJob().getTaskId()== p.getCurrentJob().getTaskId() &&
             								p.getCurrentJob().getBackupProcessor().getCurrentJob().getJobId()== p.getCurrentJob().getJobId()
             								&& !p.getCurrentJob().getBackupProcessor().getCurrentJob().isPrimary() )
         							{
@@ -1191,24 +1237,25 @@ public class MixedConstantBackFreq_fq___06_12_19 {
 						// System.out.println("// CHECK DEADLINE MISS   time  "+time +"task id "+proc.getCurrentJob().getTaskId()+" job id " + proc.getCurrentJob().getJobId());
 
 						//+ "  job id  "+j1.getJobId()+  "   task id  " + j1.getTaskId() +"  deadline  "+j1.getAbsoluteDeadline());
-						if (proc.getCurrentJob()!=null && !proc.getCurrentJob().isCompletionSuccess() && proc.getCurrentJob().getAbsoluteDeadline()<time) // IF TIME IS MORE THAN THE DEADLINE, ITS A MISSING DEADLINE
+						if (proc.getCurrentJob()!=null && !proc.getCurrentJob().isCompletionSuccess() && 
+								proc.getCurrentJob().getAbsoluteDeadline()<time) // IF TIME IS MORE THAN THE DEADLINE, ITS A MISSING DEADLINE
 						{
 							deadlineMissed= true;
-							System.out.println("getCurrentJob deadline missed  task id "+proc.getCurrentJob().getTaskId()+" job id " + proc.getCurrentJob().getJobId()
+							System.out.println("  time "+time+"getCurrentJob deadline missed  task id "+proc.getCurrentJob().getTaskId()+" job id " + proc.getCurrentJob().getJobId()
 									+"\tactivation "+proc.getCurrentJob().getActivationDate()+"  deadline time  "+proc.getCurrentJob().getAbsoluteDeadline()
-									+"  time "+time+" proc "+proc.getId() );
-						/*	writer_energy.write("deadline missed  task id "+proc.getCurrentJob().getTaskId()+" job id " + proc.getCurrentJob().getJobId()
+									+" proc "+proc.getId() );
+							writer_energy.write("deadline missed  task id "+proc.getCurrentJob().getTaskId()+" job id " + proc.getCurrentJob().getJobId()
 									+"\tactivation "+proc.getCurrentJob().getActivationDate()+"  deadline time  "+proc.getCurrentJob().getAbsoluteDeadline()
 									+"  time "+time+" proc "+proc.getId());	
-							writer_energy.close();*/
+							writer_energy.close();
 						/*	writer_tasks.write("deadline missed  task id "+proc.getCurrentJob().getTaskId()+" job id " + proc.getCurrentJob().getJobId()
 									+"\tactivation "+proc.getCurrentJob().getActivationDate()+"  deadline time  "+proc.getCurrentJob().getAbsoluteDeadline()
 									+"  time "+time);*/	
-				/*			writer_fault.write("\ndeadline missed  task id "+proc.getCurrentJob().getTaskId()+" job id " + proc.getCurrentJob().getJobId()
+					/*		writer_fault.write("\ndeadline missed  task id "+proc.getCurrentJob().getTaskId()+" job id " + proc.getCurrentJob().getJobId()
 									+"\tactivation "+proc.getCurrentJob().getActivationDate()+"  deadline time  "+proc.getCurrentJob().getAbsoluteDeadline()
 									+"  time "+time+" proc "+proc.getId());
-
-							writer_schedule.write("deadline missed  task id "+proc.getCurrentJob().getTaskId()+" job id " + proc.getCurrentJob().getJobId()
+*/
+			/*				writer_schedule.write("deadline missed  task id "+proc.getCurrentJob().getTaskId()+" job id " + proc.getCurrentJob().getJobId()
 									+"\tactivation "+proc.getCurrentJob().getActivationDate()+"  deadline time  "+proc.getCurrentJob().getAbsoluteDeadline()
 									+"  time "+time+" proc "+proc.getId());
 							writer_schedule.write("\n "+time+"\t"+"\t"+proc.getCurrentJob().getTaskId()+"\t"+proc.getCurrentJob().getJobId()+"\t"+proc.getCurrentJob().getActivationDate()+
@@ -1216,11 +1263,11 @@ public class MixedConstantBackFreq_fq___06_12_19 {
 									"\t"+proc.getCurrentJob().getStartTime()+"\t"+proc.getCurrentJob().getEndTime()+"\t"+proc.getCurrentJob().NoOfPreemption+" proc "+proc.getId());
 
 							
-							writer_schedule.close();
+							writer_schedule.close();*/
 							
 						//	writer_tasks.close();
-							writer_fault.close();
-							System.exit(0);*/
+						//	writer_fault.close();
+							System.exit(0);
 
 						}
 					}
@@ -1241,10 +1288,10 @@ public class MixedConstantBackFreq_fq___06_12_19 {
 								System.out.println("readyQueue deadline missed  task id "+jtemp.getTaskId()+" job id " + jtemp.getJobId()
 								+"\tactivation "+jtemp.getActivationDate()+"  deadline time  "+jtemp.getAbsoluteDeadline()
 								+"  time "+time+" proc "+proc.getId());
-							/*	writer_energy.write("deadline missed  task id "+jtemp.getTaskId()+" job id " + jtemp.getJobId()
+								writer_energy.write("deadline missed  task id "+jtemp.getTaskId()+" job id " + jtemp.getJobId()
 								+"\tactivation "+jtemp.getActivationDate()+"  deadline time  "+jtemp.getAbsoluteDeadline()
 								+"  time "+time+" proc "+proc.getId());	
-								writer_energy.close();*/
+								writer_energy.close();
 							/*	writer_tasks.write("deadline missed  task id "+jtemp.getTaskId()+" job id " + jtemp.getJobId()
 								+"\tactivation "+jtemp.getActivationDate()+"  deadline time  "+jtemp.getAbsoluteDeadline()
 								+"  time "+time);	*/
@@ -1255,10 +1302,10 @@ public class MixedConstantBackFreq_fq___06_12_19 {
 
 							
 								writer_schedule.close();
-								
+			*/					
 							//	writer_tasks.close();
-								writer_fault.close();
-								System.exit(0);*/
+							//	writer_fault.close();
+								System.exit(0);
 
 
 							}
@@ -1281,24 +1328,24 @@ public class MixedConstantBackFreq_fq___06_12_19 {
 								System.out.println("backupJobQueue deadline missed  task id "+jtemp.getTaskId()+" job id " + jtemp.getJobId()
 								+"\tactivation "+jtemp.getActivationDate()+"  deadline time  "+jtemp.getAbsoluteDeadline()
 								+"  time "+time+" proc "+proc.getId());
-								/*writer_energy.write("deadline missed  task id "+jtemp.getTaskId()+" job id " + jtemp.getJobId()
+								writer_energy.write("deadline missed  task id "+jtemp.getTaskId()+" job id " + jtemp.getJobId()
 								+"\tactivation "+jtemp.getActivationDate()+"  deadline time  "+jtemp.getAbsoluteDeadline()
 								+"  time "+time+" proc "+proc.getId());	
-								writer_energy.close();*/
+								writer_energy.close();
 								/*writer_tasks.write("deadline missed  task id "+jtemp.getTaskId()+" job id " + jtemp.getJobId()
 								+"\tactivation "+jtemp.getActivationDate()+"  deadline time  "+jtemp.getAbsoluteDeadline()
 								+"  time "+time);*/	
-						/*		writer_schedule.write("\ndeadline missed  task id "+jtemp.getTaskId()+"  deadline time  "+jtemp.getAbsoluteDeadline()+"  time "+time+" proc "+proc.getId());
+				/*				writer_schedule.write("\ndeadline missed  task id "+jtemp.getTaskId()+"  deadline time  "+jtemp.getAbsoluteDeadline()+"  time "+time+" proc "+proc.getId());
 								writer_schedule.write("\n "+time+"\t"+"\t"+jtemp.getTaskId()+"\t"+jtemp.getJobId()+"\t"+jtemp.getActivationDate()+
 										"\t"+jtemp.getRemainingTime()+"\t"+jtemp.getAbsoluteDeadline()+"\t"+jtemp.getProc().getId()+
 										"\t"+jtemp.getStartTime()+"\t"+jtemp.getEndTime()+"\t"+jtemp.NoOfPreemption+" proc "+proc.getId());
 
 							
-								writer_schedule.close();
+								writer_schedule.close();*/
 								
 							//	writer_tasks.close();
-								writer_fault.close();
-								System.exit(0);*/
+							//	writer_fault.close();
+								System.exit(0);
 							}
 						}
 
@@ -1311,33 +1358,35 @@ public class MixedConstantBackFreq_fq___06_12_19 {
 				{
 					if(time== proc.getEndTimeCurrentJob() && proc.isBusy())
 					{
-						//	//System.out.println("in TIME  "+time+"  p  "+proc.getId()+" active  "+ proc.activeTime+"  energy  "+proc.getActiveEnergy());
-
+				/*		if(proc.getCurrentJob().getTaskId()==230)
+						System.out.println("inend  TIME  "+time+"  p  "+proc.getId()+" active  "+ proc.activeTime+"  energy  "+proc.getActiveEnergy());
+*/
 						proc.setProc_state(proc_state.IDLE);
 						proc.setBusy(false);
 						proc.getCurrentJob().setCompletionSuccess(true);
 						executedTime = (time-proc.getCurrentJob().getStartTime())+1;
 						remain_time = 0;
-						energy_consumed= energyConsumed.energyActive(((time-proc.getCurrentJob().getStartTime())+1), proc.getCurrentJob().getExec_frequency());
+						energy_consumed= energyConsumed.energyActive(((time-proc.getCurrentJob().getStartTime())+1),
+								proc.getFrequency());
 						proc.setActiveEnergy(energy_consumed);
 						
 						//System.out.println("in TIME  "+time+"  p  "+proc.getId()+" active  "+ proc.activeTime+"  energy  "+proc.getActiveEnergy());
-
-						/*	 //System.out.println(" //at end time of any job    p  "+proc.getId()+"   end time  "+proc.getEndTimeCurrentJob()
+		/*				if(proc.getCurrentJob().getTaskId()==230)
+							 System.out.println(" //at end time of any job    p  "+proc.getId()+"   end time  "+proc.getEndTimeCurrentJob()
         		+"  primary   "+proc.getCurrentJob().isPrimary()+"  task  "+proc.getCurrentJob().getTaskId()+"  job  "+proc.getCurrentJob().getJobId());
-						 */	if(proc.getCurrentJob().isPrimary())
+		*/				 	if(proc.getCurrentJob().isPrimary())
 						 {
 
 
 							 fullPrimariesExecuted++;
-					/*		 writer_schedule.write("\ne "+proc.getId()+" "+proc.getCurrentJob().getTaskId()+" "+proc.getCurrentJob().getJobId()+" "+
+		/*					 writer_schedule.write("\ne "+proc.getId()+" "+proc.getCurrentJob().getTaskId()+" "+proc.getCurrentJob().getJobId()+" "+
 									 proc.getCurrentJob().isPrimary()+" "+Double.valueOf(twoDecimals.format(	proc.getCurrentJob().getFrequency()))
 									 +" "+	Double.valueOf(twoDecimals.format(proc.getCurrentJob().getExec_frequency()))+" "+proc.getCurrentJob().getRemainingTime()+" "+proc.getCurrentJob().getRomainingTimeCost()+" "+
 									 proc.getCurrentJob().getDeadline()
 									 +" "+	proc.getCurrentJob().isPreempted+" "+proc.getCurrentJob().getStartTime()+" ");
 							 writer_schedule.write(proc.getCurrentJob().getEndTime()+" "+executedTime+" "+remain_time+" "+energy_consumed+
 									 " "+proc.getCurrentJob().isFaulty() );
-						*/
+		*/				
 						 }
 						 else
 						 {
@@ -1345,7 +1394,7 @@ public class MixedConstantBackFreq_fq___06_12_19 {
 							 fullBackupsExecuted++;
 							 // 	//System.out.println("time  "+time  +"  proc  "+proc.getId()+"  fullBackupsExecuted   "+fullBackupsExecuted);
 
-				/*			 writer_schedule.write("\ne "+proc.getId()+" "+proc.getCurrentJob().getTaskId()+" "+proc.getCurrentJob().getJobId()+" "+
+			/*				 writer_schedule.write("\ne "+proc.getId()+" "+proc.getCurrentJob().getTaskId()+" "+proc.getCurrentJob().getJobId()+" "+
 									 proc.getCurrentJob().isPrimary()+" "+Double.valueOf(twoDecimals.format(	proc.getCurrentJob().getFrequency()))
 									 +" "+Double.valueOf(twoDecimals.format(proc.getCurrentJob().getExec_frequency()))+" "+	proc.getCurrentJob().getRomainingTimeCost()+" "+proc.getCurrentJob().getRomainingTimeCost()+" "+	proc.getCurrentJob().getDeadline()
 									 +" "+	proc.getCurrentJob().isPreempted+" "+proc.getCurrentJob().getStartTime()+" ");
@@ -1353,8 +1402,8 @@ public class MixedConstantBackFreq_fq___06_12_19 {
 									 " "+proc.getCurrentJob().isFaulty() );
 							 writer_schedule.write(" "+fullBackupsExecuted +" "+partialBackupsExecuted +" "+fullBackupsCancelled+" "
 									 + cancelledPrimariesFull +" "+  cancelledPrimariesPartial +" "+ fullPrimariesExecuted +" "+noOfFaults);
-
-	*/					 }
+*/
+						 }
 
 						 ////////////// DELETE THE BACKUP JOB IF NOT STARTED///////////////////
 						 if(proc.getCurrentJob().isPrimary() && !proc.getCurrentJob().isFaulty())
@@ -1381,9 +1430,9 @@ public class MixedConstantBackFreq_fq___06_12_19 {
         					else*/
 									  cancel=true;
 									  fullBackupsCancelled++;
-						/*			  writer_schedule.write(" "+fullBackupsExecuted +" "+partialBackupsExecuted +" "+fullBackupsCancelled+" "
+				/*					  writer_schedule.write(" "+fullBackupsExecuted +" "+partialBackupsExecuted +" "+fullBackupsCancelled+" "
 											  + cancelledPrimariesFull +" "+  cancelledPrimariesPartial +" "+ fullPrimariesExecuted +" "+noOfFaults);
-					*/				  /*		//System.out.println("time   "+time+"   fullPrimariesExecuted  "+fullPrimariesExecuted+
+				*/					  /*		//System.out.println("time   "+time+"   fullPrimariesExecuted  "+fullPrimariesExecuted+
             		    			"  proc.getCurrentJob().getEndTime()  "+proc.getCurrentJob().getEndTime());
 									   */		break;
 								 }
@@ -1407,9 +1456,9 @@ public class MixedConstantBackFreq_fq___06_12_19 {
 											  partialBackupsExecuted++;
 										  else
 											  fullBackupsCancelled++;
-						/*				  writer_schedule.write(" "+fullBackupsExecuted +" "+partialBackupsExecuted +" "+fullBackupsCancelled+" "
+		/*								  writer_schedule.write(" "+fullBackupsExecuted +" "+partialBackupsExecuted +" "+fullBackupsCancelled+" "
 												  + cancelledPrimariesFull +" "+  cancelledPrimariesPartial +" "+ fullPrimariesExecuted +" "+noOfFaults);
-					*/					  /*//System.out.println("time   "+time+"   fullPrimariesExecuted  "+fullPrimariesExecuted+
+		*/								  /*//System.out.println("time   "+time+"   fullPrimariesExecuted  "+fullPrimariesExecuted+
                  		    			"  proc.getCurrentJob().getEndTime()  "+proc.getCurrentJob().getEndTime());
 										   */	
 										  break;
@@ -1425,7 +1474,9 @@ public class MixedConstantBackFreq_fq___06_12_19 {
 									//+ " onBackup  "+onBackup.getTaskId());
 							// !cancel means backup has not been cancel above in queue and is running
 							// for WFD where a processor may have only backups or may be a empty processor
-							 if(!cancel && !onBackup.isCompletionSuccess() && onBackup.getTaskId()==onPrimary.getTaskId()
+							 if(				 !cancel&&
+									 onBackup!=null 
+									 && !onBackup.isCompletionSuccess() && onBackup.getTaskId()==onPrimary.getTaskId()
 									 && onBackup.getJobId()==onPrimary.getJobId())
 							 {
 
@@ -1440,7 +1491,7 @@ public class MixedConstantBackFreq_fq___06_12_19 {
 									remain_time = onBackup.getRomainingTimeCost()-executedTime;
 									energy_consumed= energyConsumed.energyActive
 											 (((time-onBackup.getStartTime())+1), 
-													 onBackup.getExec_frequency());
+													 onPrimary.getBackupProcessor().getFrequency());
 								
 								 onPrimary.getBackupProcessor().setActiveEnergy(energy_consumed);
 								 //System.out.println("in running TIME  "+time+"  p  "+onPrimary.getBackupProcessor().getId()+" active  "+ onPrimary.getBackupProcessor().activeTime+"  energy  "+onPrimary.getBackupProcessor().getActiveEnergy());
@@ -1490,7 +1541,10 @@ public class MixedConstantBackFreq_fq___06_12_19 {
 							 Job onPrimary, onBackup;
 							 onBackup = proc.getCurrentJob();
 							 onPrimary=onBackup.getPrimaryProcessor().getCurrentJob();
-							 if(!onPrimary.isCompletionSuccess() && onBackup.getTaskId()==onPrimary.getTaskId() && onBackup.getJobId()==onPrimary.getJobId())
+							 if(onPrimary!=null &&
+									 !onPrimary.isCompletionSuccess()
+									 && onBackup.getTaskId()==onPrimary.getTaskId() 
+									 && onBackup.getJobId()==onPrimary.getJobId())
 							 {
 
 								 cancelledPrimariesPartial++;
@@ -1498,7 +1552,8 @@ public class MixedConstantBackFreq_fq___06_12_19 {
 								 executedTime = (time-onPrimary.getStartTime())+1;
 									remain_time = onPrimary.getRemainingTime()-executedTime;
 									energy_consumed= energyConsumed.energyActive
-											 (((time-onPrimary.getStartTime())+1), onPrimary.getExec_frequency());
+											 (((time-onPrimary.getStartTime())+1),
+													 onBackup.getPrimaryProcessor().getFrequency());
 								
 								 onBackup.getPrimaryProcessor().setActiveEnergy(energy_consumed);
 								 //System.out.println("in TIME  "+time+"  p  "+proc.getId()+" active  "+ proc.activeTime+"  energy  "+proc.getActiveEnergy());
@@ -1507,7 +1562,7 @@ public class MixedConstantBackFreq_fq___06_12_19 {
 								 //	 onPrimary.getPrimaryProcessor().setBusy(false);
 								 onPrimary.setCompletionSuccess(true);
 								 //		proc.setActiveEnergy(energyConsumed.energyActive((time-onPrimary.getStartTime()), onPrimary.getFrequency()));
-					/*			 writer_schedule.write("\ndeletetheprimary "+onBackup.getPrimaryProcessor().getId()+" "+onPrimary.getTaskId()+" "+onPrimary.getJobId()+" "+
+				/*				 writer_schedule.write("\ndeletetheprimary "+onBackup.getPrimaryProcessor().getId()+" "+onPrimary.getTaskId()+" "+onPrimary.getJobId()+" "+
 										 onPrimary.isPrimary()+" "+Double.valueOf(twoDecimals.format(	onPrimary.getFrequency()))
 										 +" "+	Double.valueOf(twoDecimals.format(onPrimary.getExec_frequency()))+" "+	onPrimary.getRemainingTime()+" "+onPrimary.getRomainingTimeCost()+	" "+onPrimary.getDeadline()
 										 +" "+	onPrimary.isPreempted+" "+onPrimary.getStartTime()+" ");
@@ -1543,10 +1598,10 @@ public class MixedConstantBackFreq_fq___06_12_19 {
 */
 			if(deadlineMissed)
 				writer_energy.write(total_no_tasksets++ + " "+Double.valueOf(twoDecimals.format(U_SUM))+" "
-						+Double.valueOf(twoDecimals.format(0))+" 0"+" 1"+"\n");
+						+Double.valueOf(twoDecimals.format(0))+" 0"+" 1 "+pof_1+" "+pof_MOG+"\n");
 				else
 				writer_energy.write(total_no_tasksets++ + " "+Double.valueOf(twoDecimals.format(U_SUM))+" "
-						+Double.valueOf(twoDecimals.format(energyTotal))	+" 1"+" 0"+"\n");
+						+Double.valueOf(twoDecimals.format(energyTotal))	+" 1"+" 0 "+pof_1+" "+pof_MOG+"\n");
 			/*writer_energy.write("\n"+total_no_tasksets++ + " "+Double.valueOf(twoDecimals.format(U_SUM))
 			+" "+ Double.valueOf(twoDecimals.format(minfq))+" "+ Double.valueOf(twoDecimals.format(maxfq))+" "+
 			" "+Double.valueOf(twoDecimals.format(energyTotal)));*/
@@ -1565,12 +1620,12 @@ public class MixedConstantBackFreq_fq___06_12_19 {
 
 		// writer_allocation.close();
 		writer_energy.close();
-	/*	writer_schedule.close();
+	//	writer_schedule.close();
 		
 		//writer_tasks.close();
-		writer_fault.close();
-		writer_analysis.close();*/
-		//  writer_taskProcWise.close();
+	/*	writer_fault.close();
+		writer_analysis.close();
+	*/	//  writer_taskProcWise.close();
 		System.out.println("finish mogMULTI_6_12_18 ");
 	}
 

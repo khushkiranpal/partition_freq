@@ -149,7 +149,7 @@ public class GenerateTaskSetHAQUE {
      			if (schedulable)
      			{
      				
-     				taskwrite.write("TASKSETNO. "+noOfTasksets++ +" nbTasks "+nbTasks+
+     				taskwrite.write("TASKSETNO. "+noOfTasksets++ +" nbTasks "+tasks.length+
      						" Utilization "+ Double.valueOf(twoDecimals.format(SystemMetric.utilisation(tasks)))
      						+" hyperperiod "+hyper+"\n");
      			}
@@ -161,7 +161,7 @@ public class GenerateTaskSetHAQUE {
      			}
      			}
      			else
-         			taskwrite.write("TASKSETNO. "+noOfTasksets++ +" nbTasks "+nbTasks+
+         			taskwrite.write("TASKSETNO. "+noOfTasksets++ +" nbTasks "+tasks.length+
          					" Utilization "+ Double.valueOf(twoDecimals.format(SystemMetric.utilisation(tasks)))
          					+" hyperperiod "+hyper+"\n");
 

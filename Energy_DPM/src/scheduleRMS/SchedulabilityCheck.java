@@ -76,7 +76,9 @@ public class SchedulabilityCheck {
 		                {
 		                	/*if(taskSet.get(i).isPrimary())
 		                	{*/ 	
-		                		w += (int) (Math.ceil((double) w1/taskSet.get(i).getPeriod())*taskSet.get(i).getWcet());
+		                		w += (int) (Math.ceil((double) w1/taskSet.get(i).getPeriod())
+		                				
+		                				*taskSet.get(i).getWcet());
 		           //    	 System.out.println("task j "+taskSet.get(i).getId()+" primary  "+taskSet.get(i).isPrimary());
 		               // }
 		                	}
@@ -86,7 +88,6 @@ public class SchedulabilityCheck {
 		                return false;
 		            
 		           
-		        
 		        }
 		        return true;
 		    }
